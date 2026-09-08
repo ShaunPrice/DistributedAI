@@ -20,7 +20,7 @@ azure-kms = ["azure-identity>=1.24,<2", "azure-keyvault-keys>=4.10,<5"]
 gcp-kms = ["google-cloud-kms>=3.5,<4"]
 
 [dependency-groups]
-dev = ["pytest>=8.4,<9", "pytest-asyncio>=1.1,<2", "ruff>=0.12,<1"]
+dev = ["pytest>=8.4,<10", "pytest-asyncio>=1.1,<2", "ruff>=0.12,<1"]
 
 [project.scripts]
 distributedai = "distributedai.cli:main"
