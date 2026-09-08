@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 RUN pip install --no-cache-dir uv==0.8.22
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_COMPILE_BYTECODE=1
 WORKDIR /app
