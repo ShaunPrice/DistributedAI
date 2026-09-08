@@ -87,7 +87,7 @@ def management_app(store, settings):
 
     async def asset(request):
         name = request.path_params["name"]
-        if name not in {"app.js", "style.css"}:
+        if name not in {"app.js", "style.css", "favicon.svg", "icon-projects.svg", "icon-people.svg", "icon-reviews.svg", "icon-billing.svg", "icon-keys.svg", "icon-audit.svg"}:
             return JSONResponse({"error": "Not found"}, 404)
         return FileResponse(STATIC / name)
 

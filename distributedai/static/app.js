@@ -91,7 +91,13 @@ function renderProjects() {
   const list = $("project-list");
   list.replaceChildren();
   const scopes = state.scopes.filter((s) => s.kind !== "organisation");
-  $("project-count").textContent = scopes.length + " visible";
+  $("project-count").textContent = scopes.length + " workspaces";
+  $("metric-projects").textContent = scopes.filter(
+    (s) => s.kind === "project",
+  ).length;
+  $("metric-departments").textContent = scopes.filter(
+    (s) => s.kind === "department",
+  ).length;
   if (!scopes.length) {
     list.append(
       node(
@@ -108,7 +114,16 @@ function renderProjects() {
     const row = node("button", undefined, "project-row");
     row.type = "button";
     row.append(
-      node("span", scope.kind === "project" ? "↗" : "⊞", "project-icon"),
+      node(
+        "span",
+        scope.name
+          .split(/\s+/)
+          .map((w) => w[0])
+          .slice(0, 2)
+          .join("")
+          .toUpperCase(),
+        "project-icon",
+      ),
     );
     const title = node("span", scope.name);
     const parent = state.scopes.find((s) => s.scope_id === scope.parent_id);
@@ -470,14 +485,24 @@ async function renderBilling() {
   list.replaceChildren();
   connections.connections.forEach((connection) => {
     const row = node("div", undefined, "form-panel");
+    const instance = instances.instances.find(
+      (item) => item.instance_id === connection.instance_id,
+    );
+    const owner = people.find(
+      (item) => item.principal_id === connection.owner_principal_id,
+    );
     row.append(
-      node("strong", connection.connection_id),
+      node("strong", instance ? instance.name : "Assigned instance"),
       node(
         "p",
-        "Instance " +
-          connection.instance_id +
+        (owner ? owner.name : "Assigned owner") +
           " · " +
           (connection.active ? "Active" : "Revoked"),
+      ),
+      node(
+        "p",
+        "Connection " + connection.connection_id,
+        "connection-reference",
       ),
     );
     if (connection.active) {
@@ -515,8 +540,10 @@ async function renderBilling() {
       paymentOptions = { ...available, providers };
       options("payment-provider", providers, "name", (item) => item.name);
       updatePaymentPlans();
+      $("payment-form").hidden = !providers.length;
+      $("payment-portal").hidden = !providers.some((p) => p.portal);
       $("payment-description").textContent = providers.length
-        ? "Checkout takes place with the payment provider. Project access remains separately assigned."
+        ? "Experimental payment integration. Checkout takes place with the provider; project access remains separately assigned."
         : "No payment provider is configured for this deployment.";
       $("checkout-button").disabled = !providers.some((p) => p.checkout);
       $("payment-portal").disabled = !providers.some((p) => p.portal);

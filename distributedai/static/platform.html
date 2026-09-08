@@ -5,20 +5,58 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DistributedAI · Platform</title>
+    <meta name="theme-color" content="#172c46" />
+    <link rel="icon" type="image/svg+xml" href="/platform/assets/favicon.svg" />
     <link rel="stylesheet" href="/platform/assets/style.css" />
     <script defer src="/platform/assets/platform.js"></script>
   </head>
-  <body>
-    <main>
-      <header>
-        <p class="eyebrow">DistributedAI</p>
-        <h1>Platform administration</h1>
+  <body class="platform-page">
+    <aside class="sidebar">
+      <a class="brand" href="/platform/"
+        ><img
+          class="brand-mark"
+          src="/platform/assets/favicon.svg"
+          width="38"
+          height="38"
+          alt=""
+        /><span>DistributedAI<small>Platform administration</small></span></a
+      >
+      <div class="workspace-label">CONTROL PLANE</div>
+      <div class="organisation-name">Service administration</div>
+      <nav aria-label="Platform">
+        <a class="nav-item selected" href="/platform/"
+          ><img
+            src="/platform/assets/icon-billing.svg"
+            width="18"
+            height="18"
+            alt=""
+          />Accounts</a
+        >
+      </nav>
+      <div class="sidebar-note">
+        <span class="status-dot"></span> Separate by design.
         <p>
-          Account availability, plan limits and service metadata. Organisation
-          content and encryption keys are never shown here.
+          Manage service availability and account limits. Organisation content
+          stays in its own workspace.
         </p>
+      </div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <span>PLATFORM / <strong>ACCOUNTS</strong></span
+        ><span class="edition">EXPERIMENTAL PREVIEW</span>
+      </div>
+      <header class="page-heading">
+        <div>
+          <p class="eyebrow">DistributedAI</p>
+          <h1>Account administration</h1>
+          <p>
+            Account availability, plan limits and service metadata. Organisation
+            content and encryption keys are never shown here.
+          </p>
+        </div>
       </header>
-      <section id="signin">
+      <section id="signin" class="form-panel platform-signin">
         <h2>Platform sign-in</h2>
         <p>
           <a id="cloud-login" href="/platform/oidc/start" hidden
@@ -38,8 +76,8 @@
       </section>
       <p id="notice" role="status" aria-live="polite"></p>
       <section id="console" hidden>
-        <button id="refresh" type="button">Refresh</button>
-        <button id="logout" type="button">Sign out</button>
+        <button class="secondary" id="refresh" type="button">Refresh</button>
+        <button class="secondary" id="logout" type="button">Sign out</button>
         <h2>Accounts</h2>
         <p>
           Account identifiers, creation dates and aggregate counts only.

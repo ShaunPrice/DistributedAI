@@ -1,10 +1,13 @@
-# DistributedAI
+# <img src="distributedai/static/favicon.svg" width="36" height="36" alt="DistributedAI icon" /> DistributedAI
 
 > **Experimental — not fully tested. This solution may contain security vulnerabilities.**
 > Automated tests and scans provide limited evidence, not a security assurance or production-readiness certification. Live cloud identity, payment-provider integration and deployment security require independent validation before use with sensitive data or production workloads.
 
-
 Shared memory and coordination for people and AI tools, with explicit organisation and project access.
+
+![DistributedAI project workspace showing a demonstration organisation, project directory and access hierarchy](docs/images/workspace.png)
+
+*Actual application screenshot · fictional demonstration data · experimental preview. [Explore the console](docs/CONSOLE.md).*
 
 DistributedAI brings the proposal/review and leased-job patterns from Cognitive-Memory into an independent, portable service. Multiple Claude, ChatGPT, Codex, Hermes, OpenClaw, Perplexity, or other MCP clients can collaborate against one shared store. Each user or client instance has its own identity. A project code identifies the shared workspace; an administrator's access assignment authorises its use.
 
@@ -56,16 +59,25 @@ Tokens are credentials; project codes are locators. Knowing a project code alone
 
 The offline database operator provisions additional organisations; tenant administrators cannot create or enter another organisation. Root/department grants are inherited. Removing a project grant does not remove access inherited from a parent. Use a separate identity for each independent reviewer; this enforces identity separation, not proof that two identities belong to different humans.
 
-## Deploy and operate
+## Documentation
 
-- [Architecture and security boundaries](docs/ARCHITECTURE.md)
-- [Client connection examples](docs/CLIENTS.md)
-- [Local, internet and AWS deployment](docs/DEPLOYMENT.md)
-- [Cognitive-Memory import](docs/MIGRATION.md)
-- [Test evidence and limitations](docs/VALIDATION.md)
-- [Security reporting](SECURITY.md)
+| Guide | What it covers |
+| --- | --- |
+| [Console tour](docs/CONSOLE.md) | Screenshots and workflows for workspace administrators |
+| [Architecture](docs/ARCHITECTURE.md) | Shared memory, coordination and security boundaries |
+| [Client setup](docs/CLIENTS.md) | MCP connection examples and compatibility limits |
+| [Deployment](docs/DEPLOYMENT.md) | Docker, HTTPS and AWS installation |
+| [Serverless](docs/SERVERLESS.md) | AWS, Azure and GCP templates; cloud deployment unverified |
+| [Identity](docs/IDENTITY.md) | Provider sign-in and passkey configuration; live integrations unverified |
+| [Platform administration](docs/PLATFORM.md) | Separate account administration and content-access boundaries |
+| [Encryption](docs/ENCRYPTION.md) | AES-256-GCM and customer-managed keys; cloud KMS integration unverified |
+| [Accounts and billing](docs/BILLING.md) | Optional plans, quotas and payment adapters; live payments unverified |
+| [Operating costs](docs/COSTS.md) | Indicative assumptions and estimates, not measured unit costs |
+| [Import](docs/MIGRATION.md) | Scoped import from reviewed Cognitive-Memory exports |
+| [Validation](docs/VALIDATION.md) | Test evidence, known gaps and limitations |
+| [Security](SECURITY.md) | Reporting and repository scanning |
 
-Internet access requires a domain, HTTPS and a configured authentication path. The AWS template creates chargeable resources only when an operator applies it. No cloud deployment is performed by local setup.
+Internet access requires a domain, HTTPS and a configured authentication path. Cloud templates create chargeable resources only when an operator applies them. Local setup does not deploy to a cloud.
 
 ## Develop and test
 
@@ -84,19 +96,8 @@ The Docker test command includes real PostgreSQL concurrency tests in disposable
 
 This repository contains new service code and synthetic tests. It does not contain an export of personal Cognitive-Memory records, credentials, client configurations or prior conversation history.
 
-Provider-hosted browser login and passkey configuration for AWS, Azure and GCP: [cloud identity guide](docs/IDENTITY.md).
-
 ## Licensing
 
 The server under `distributedai/` (including its management UI) is licensed **AGPL-3.0-only**, except the standalone `distributedai/proxy.py` client adapter, which is **Apache-2.0**. The remaining original repository material—deployment templates, scripts, tests and documentation—is Apache-2.0. Third-party components retain their own licences. See [licensing boundaries](docs/LICENSING.md), [dependency audit](docs/DEPENDENCY_LICENSES.md), [server licence](LICENSE) and [Apache licence](LICENSE-APACHE-2.0).
 
 Hosted modified server deployments must provide their interacting users access to the corresponding source under AGPL. The repository is currently private; a public deployment must separately arrange source access or make the appropriate source public. Changing a future release's licence does not revoke earlier grants.
-
-## Deployment and account options
-
-- [AWS, Azure and GCP serverless containers](docs/SERVERLESS.md)
-- [Cloud identity and provider-managed passkeys](docs/IDENTITY.md)
-- [Content-blind central administration](docs/PLATFORM.md)
-- [AES-256-GCM content encryption and customer-managed keys](docs/ENCRYPTION.md)
-- [Optional paid accounts and connection quotas](docs/BILLING.md)
-- [Indicative running costs](docs/COSTS.md)

@@ -1,5 +1,9 @@
 # Tenant content encryption
 
+![Organisation encryption settings with no key material displayed](images/encryption-keys.png)
+
+*Experimental application preview with fictional demonstration data. [Console tour and capture notes](CONSOLE.md).*
+
 `distributedai.encryption.CryptoBox` supplies AES-256-GCM authenticated field encryption with independent random 256-bit data encryption keys per organisation. Fresh 96-bit nonces are generated for every field write. Authentication binds ciphertext to its organisation, record, field and key version, preventing ciphertext substitution between tenants or columns. Malformed, plaintext, unavailable-key and tampered inputs fail closed.
 
 The data key is stored only as an encrypted envelope in `tenant_key_versions`. Local deployments wrap it using another AES-256-GCM key loaded from a protected deployment secret file. Keep that master key separate from the database and its backups; losing it loses access to every key it wraps. Never commit it or include it in logs, support bundles, Terraform state or API responses. Back up encrypted data and necessary key versions under separate access controls.

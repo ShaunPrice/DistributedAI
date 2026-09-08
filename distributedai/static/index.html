@@ -5,6 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>DistributedAI · Workspace management</title>
+    <meta name="theme-color" content="#172c46" />
+    <link rel="icon" type="image/svg+xml" href="/manage/assets/favicon.svg" />
     <link rel="stylesheet" href="/manage/assets/style.css" />
     <script src="/manage/assets/app.js" defer></script>
   </head>
@@ -12,28 +14,70 @@
     <a class="skip" href="#main">Skip to workspace</a>
     <aside class="sidebar">
       <a class="brand" href="/manage/"
-        ><span class="brand-mark" aria-hidden="true">d<span>·</span>ai</span
-        ><span>DistributedAI<small>Shared intelligence</small></span></a
+        ><img
+          class="brand-mark"
+          src="/manage/assets/favicon.svg"
+          width="38"
+          height="38"
+          alt=""
+        /><span>DistributedAI<small>Connected intelligence</small></span></a
       >
-      <div class="workspace-label">ORGANISATION WORKSPACE</div>
+      <div class="workspace-label">WORKSPACE</div>
       <div id="organisation-name" class="organisation-name">
         Connect your organisation
       </div>
       <nav aria-label="Workspace">
         <button class="nav-item selected" data-view="projects">
-          Projects <span>↗</span>
+          <img
+            src="/manage/assets/icon-projects.svg"
+            width="18"
+            height="18"
+            alt=""
+          />
+          Projects
         </button>
         <button class="nav-item" data-view="people" data-admin>
+          <img
+            src="/manage/assets/icon-people.svg"
+            width="18"
+            height="18"
+            alt=""
+          />
           People &amp; access
         </button>
-        <button class="nav-item" data-view="reviews">Memory reviews</button>
+        <button class="nav-item" data-view="reviews">
+          <img
+            src="/manage/assets/icon-reviews.svg"
+            width="18"
+            height="18"
+            alt=""
+          />Memory reviews
+        </button>
         <button class="nav-item" data-view="billing">
+          <img
+            src="/manage/assets/icon-billing.svg"
+            width="18"
+            height="18"
+            alt=""
+          />
           Connections &amp; plan
         </button>
         <button class="nav-item" data-view="keys" data-admin>
+          <img
+            src="/manage/assets/icon-keys.svg"
+            width="18"
+            height="18"
+            alt=""
+          />
           Encryption keys
         </button>
         <button class="nav-item" data-view="audit" data-admin>
+          <img
+            src="/manage/assets/icon-audit.svg"
+            width="18"
+            height="18"
+            alt=""
+          />
           Audit trail
         </button>
       </nav>
@@ -50,7 +94,7 @@
     <main id="main">
       <header class="topbar">
         <span>WORKSPACE / <strong id="view-label">PROJECTS</strong></span
-        ><span class="edition">PRIVATE WORKSPACE</span>
+        ><span class="edition">EXPERIMENTAL PREVIEW</span>
       </header>
       <div
         id="notice"
@@ -106,11 +150,29 @@
             <div>
               <div class="eyebrow">SHARED WORKSPACES</div>
               <h1>Projects</h1>
-              <p>Give people and AI tools a place to work together.</p>
+              <p>
+                Shared context, clear ownership. Bring your people and AI tools
+                together.
+              </p>
             </div>
             <button id="show-create" data-admin>
               Create project <span aria-hidden="true">+</span>
             </button>
+          </div>
+          <div class="workspace-metrics" aria-label="Workspace overview">
+            <div>
+              <span>PROJECTS</span><strong id="metric-projects">—</strong
+              ><small>Shared places to work</small>
+            </div>
+            <div>
+              <span>DEPARTMENTS</span><strong id="metric-departments">—</strong
+              ><small>Organised around your team</small>
+            </div>
+            <div>
+              <span>ACCESS MODEL</span
+              ><strong class="metric-text">Scope-based</strong
+              ><small>Explicit roles. Inherited access.</small>
+            </div>
           </div>
           <div class="scope-strip">
             <span>Organisation</span><i aria-hidden="true">/</i
@@ -156,7 +218,7 @@
             </form>
           </section>
           <div class="table-heading">
-            <h2>Your workspaces</h2>
+            <h2>Workspace directory</h2>
             <span id="project-count"></span>
           </div>
           <div id="project-list" class="project-list"></div>
@@ -287,8 +349,8 @@
           <div class="form-panel" data-admin>
             <h2>Instances</h2>
             <p>
-              An instance groups your connections. Each deployment keeps its
-              data in PostgreSQL.
+              Group your AI tool connections into instances for a team or
+              workflow.
             </p>
             <form id="instance-form" class="inline-form">
               <label
@@ -355,6 +417,14 @@
             <button>Rotate encryption key</button>
           </form>
           <div id="key-versions"></div>
+          <aside class="security-note">
+            <strong>Keys are not exposed in the platform console.</strong>
+            <p>
+              Cloud key providers are configured by your deployment operator.
+              Protecting content from infrastructure operators requires
+              additional isolation, such as client-side encryption.
+            </p>
+          </aside>
         </section>
         <section id="audit-view" class="view" hidden>
           <div class="page-heading">

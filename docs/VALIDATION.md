@@ -55,3 +55,9 @@ The existing Cognitive-Memory connection identified the worker as `unknown` desp
 - Semantic embeddings and the full temporal/graph/consolidation feature set of Cognitive-Memory; import is explicitly scoped proposals from reviewed exports.
 
 The local installation contains an Integration Lab project and synthetic protocol-test records. The protocol test identity was revoked after validation. No personal memory export was imported.
+
+## Interface refinement — 8 September 2026
+
+The organisation and platform consoles now share a locally served SVG identity, navigation icons and responsive design system. Seven actual application screenshots were captured from an isolated fictional demonstration database and visually inspected; the README and console guide use those files directly. Documentation relative links resolve. At the 390px mobile breakpoint the workspace document and main element both measured 390px, with no horizontal page overflow. The focused management/platform/runtime suite passed 13 tests. This visual refinement does not change the outstanding security and live-integration limitations above.
+
+Claude performed a read-only information hierarchy and product-claims review. Codex integrated the useful findings, consolidated the documentation index and narrowed the key-security wording. Claude's suggestion that runtime content encryption was optional was not adopted: configured production runtime requires encryption.

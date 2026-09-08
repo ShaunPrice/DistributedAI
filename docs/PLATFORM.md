@@ -1,5 +1,9 @@
 # Platform administration
 
+![Separate platform console displaying account metadata only](images/platform-admin.png)
+
+*Experimental application preview with fictional demonstration data. [Console tour and capture notes](CONSOLE.md).*
+
 The optional `/platform/` console is a separate application role from organisation administration at `/manage/`. It exposes only account IDs, creation dates, aggregate principal/scope counts, service availability, account suspension state and billing plan/status metadata. It does not return organisation or user names, memory, messages, jobs, project codes, tenant audit records, credentials or encryption keys.
 
 Set `PLATFORM_ADMIN_TOKEN_FILE` to a separately generated secret of at least 48 characters and configure `MANAGEMENT_KEY_FILE`. Use a cryptographically random token, not a memorable password. Keep this credential separate from every tenant credential. Public instances require HTTPS. Prefer cloud sign-in with passkeys enforced by the provider policy. Set `LOGIN_MODE=oidc` and `PLATFORM_SUBJECTS_FILE` to a JSON array of explicitly authorised platform administrator subject IDs from the configured issuer. Register the additional redirect URI `https://YOUR-DOMAIN/platform/oidc/callback` on the same browser OAuth client. This role has its own subject allowlist; tenant subject mappings, tenant roles and email addresses never confer platform access. Cloud-only mode rejects the deployment-token login. In token or both mode, the separate strong platform credential is required. The console is disabled when neither a platform credential nor an eligible cloud subject configuration is supplied. A private network or identity-aware access proxy adds another useful boundary.

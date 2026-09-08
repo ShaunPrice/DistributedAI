@@ -1,6 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Optional accounts, quotas and payments
 
+![Instance and connection management in a demonstration workspace](images/connections.png)
+
+*Experimental application preview with fictional demonstration data. [Console tour and capture notes](CONSOLE.md).*
+
 Billing is **disabled by default**. Self-hosted installations remain unmetered unless `BILLING_ENABLED=true`. When enabled, the initial plan is free personal. Prices are operator configuration; no commercial price is built into the code.
 
 | Plan | Users | Logical instances | Active connections | Logical memory quota |
