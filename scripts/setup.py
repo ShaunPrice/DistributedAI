@@ -48,6 +48,8 @@ def main():
     result = subprocess.run(["docker", "compose", "run", "--rm", "bootstrap"],
                             cwd=root, check=True, capture_output=True, text=True)
     print(result.stdout.strip())
+    print("First administrator sign-in: open .secrets/bootstrap_token in this installation folder")
+    print("and paste its contents into the access-token field. It is not a project code.")
     print(json.dumps({"mcp_url": os.getenv("PUBLIC_URL", "http://127.0.0.1:8090/mcp"),
                       "operator_token_file": str(folder / "bootstrap_token")}))
 

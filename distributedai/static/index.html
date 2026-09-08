@@ -124,16 +124,23 @@
             autocomplete="current-password"
             required
             minlength="32"
-            placeholder="Enter the token issued by your administrator"
+            placeholder="Paste your administrator or user access token"
           />
           <button type="submit">
             Open workspace <span aria-hidden="true">→</span>
           </button>
         </form>
-        <small
-          >Sessions expire after 30 minutes. Ask your organisation administrator
-          for a token if you do not have one.</small
-        >
+        <details class="first-use">
+          <summary>Setting up your own installation?</summary>
+          <p>The installer creates your first organisation and administrator credential.
+            Open <code>.secrets/bootstrap_token</code> in the folder where you installed
+            DistributedAI, then paste its contents above. This is your administrator
+            access token, not a project code.</p>
+          <p>After signing in, create a project, add people or AI clients, and assign
+            their access. If you are joining someone else's installation, ask its
+            administrator for your own token.</p>
+        </details>
+        <small>Sessions expire after 30 minutes. Keep access tokens private.</small>
       </section>
       <div id="workspace" hidden>
         <section id="credential-panel" class="credential-panel" hidden>

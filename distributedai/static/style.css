@@ -906,3 +906,5 @@ tr:last-child td {
   overflow-wrap: anywhere;
   color: var(--muted);
 }
+
+.first-use{border-top:1px solid var(--line);padding:18px 0;margin:4px 0 12px}.first-use summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--ink)}.first-use p{font-size:12px;margin:13px 0 0}.first-use code{overflow-wrap:anywhere;font-size:11px}
