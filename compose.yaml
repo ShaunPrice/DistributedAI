@@ -1,0 +1,72 @@
+name: distributedai
+
+x-app: &app
+  image: distributedai:0.1.0
+  build:
+    context: .
+    target: runtime
+  environment: &environment
+    DB_HOST: db
+    DB_PASSWORD_FILE: /run/secrets/db_password
+    PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:8090/mcp}
+    ALLOWED_HOSTS: ${ALLOWED_HOSTS:-127.0.0.1:*,localhost:*}
+    ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+    OIDC_ISSUER: ${OIDC_ISSUER:-}
+    OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
+    OIDC_SUBJECTS_FILE: /run/secrets/oidc_subjects
+    MANAGEMENT_KEY_FILE: /run/secrets/management_key
+  secrets: [db_password, oidc_subjects, management_key]
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  db:
+    image: postgres:17.6-bookworm
+    environment:
+      POSTGRES_DB: distributedai
+      POSTGRES_USER: distributedai
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U distributedai -d distributedai]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  init:
+    <<: *app
+    command: [distributedai, init]
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    <<: *app
+    ports: ["127.0.0.1:${PORT:-8090}:8090"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  bootstrap:
+    <<: *app
+    profiles: [setup]
+    environment:
+      <<: *environment
+      BOOTSTRAP_TOKEN_FILE: /run/secrets/bootstrap_token
+    secrets: [db_password, oidc_subjects, bootstrap_token, management_key]
+    command: [distributedai, bootstrap]
+    depends_on:
+      init: {condition: service_completed_successfully}
+
+secrets:
+  db_password: {file: ./.secrets/db_password}
+  bootstrap_token: {file: ./.secrets/bootstrap_token}
+  oidc_subjects: {file: ./.secrets/oidc_subjects.json}
+  management_key: {file: ./.secrets/management_key}
+volumes:
+  pgdata:

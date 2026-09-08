@@ -1,0 +1,29 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+dnf install -y docker python3
+systemctl enable --now docker
+mkdir -p /usr/local/lib/docker/cli-plugins /opt/distributedai/deploy /opt/distributedai/scripts
+cd /tmp
+curl --fail --silent --show-error --location https://github.com/docker/compose/releases/download/v5.5.0/docker-compose-linux-x86_64 -o docker-compose-linux-x86_64
+curl --fail --silent --show-error --location https://github.com/docker/compose/releases/download/v5.5.0/docker-compose-linux-x86_64.sha256 -o compose.sha256
+sha256sum --check compose.sha256
+install -m 755 docker-compose-linux-x86_64 /usr/local/lib/docker/cli-plugins/docker-compose
+cd /opt/distributedai
+echo '${compose}' | base64 -d > compose.yaml
+echo '${internet}' | base64 -d > compose.internet.yaml
+echo '${caddy}' | base64 -d > deploy/Caddyfile
+echo '${setup}' | base64 -d > scripts/setup.py
+python3 scripts/setup.py --generate-only
+cat > .env <<'ENV'
+DOMAIN=${domain}
+PUBLIC_URL=https://${domain}/mcp
+ALLOWED_HOSTS=${domain},127.0.0.1:*,localhost:*
+ENV
+aws ecr get-login-password --region '${region}' | docker login --username AWS --password-stdin '${split("/", image)[0]}'
+docker pull '${image}'
+docker tag '${image}' distributedai:0.1.0
+docker logout '${split("/", image)[0]}'
+docker compose up -d --no-build --wait api
+docker compose run --rm --no-build bootstrap > bootstrap.json
+docker compose -f compose.yaml -f compose.internet.yaml up -d --no-build edge

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>DistributedAI · Workspace management</title>
+    <link rel="stylesheet" href="/manage/assets/style.css" />
+    <script src="/manage/assets/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to workspace</a>
+    <aside class="sidebar">
+      <a class="brand" href="/manage/"
+        ><span class="brand-mark" aria-hidden="true">d<span>·</span>ai</span
+        ><span>DistributedAI<small>Shared intelligence</small></span></a
+      >
+      <div class="workspace-label">ORGANISATION WORKSPACE</div>
+      <div id="organisation-name" class="organisation-name">
+        Connect your organisation
+      </div>
+      <nav aria-label="Workspace">
+        <button class="nav-item selected" data-view="projects">
+          Projects <span>↗</span>
+        </button>
+        <button class="nav-item" data-view="people" data-admin>
+          People &amp; access
+        </button>
+        <button class="nav-item" data-view="reviews">Memory reviews</button>
+        <button class="nav-item" data-view="audit" data-admin>
+          Audit trail
+        </button>
+      </nav>
+      <div class="sidebar-note">
+        <span class="status-dot"></span> Shared context. Explicit access.
+        <p>
+          Project codes bring your team to the same workspace. Permissions
+          decide what each person can do.
+        </p>
+      </div>
+      <div id="identity" class="identity">Not signed in</div>
+      <button id="logout" class="quiet" hidden>Sign out</button>
+    </aside>
+    <main id="main">
+      <header class="topbar">
+        <span>WORKSPACE / <strong id="view-label">PROJECTS</strong></span
+        ><span class="edition">PRIVATE WORKSPACE</span>
+      </header>
+      <div
+        id="notice"
+        class="notice"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></div>
+      <section id="login-panel" class="login-panel">
+        <div class="eyebrow">ONE WORKSPACE, MANY COLLABORATORS</div>
+        <h1>Context that<br />travels with your team.</h1>
+        <p>
+          Sign in to manage shared projects, connect your AI tools, and give
+          each collaborator the access they need.
+        </p>
+        <form id="login-form">
+          <label for="access-token">Your access token</label>
+          <input
+            id="access-token"
+            type="password"
+            autocomplete="current-password"
+            required
+            minlength="32"
+            placeholder="Enter the token issued by your administrator"
+          />
+          <button type="submit">
+            Open workspace <span aria-hidden="true">→</span>
+          </button>
+        </form>
+        <small
+          >Sessions expire after 30 minutes. Ask your organisation administrator
+          for a token if you do not have one.</small
+        >
+      </section>
+      <div id="workspace" hidden>
+        <section id="projects-view" class="view">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">SHARED WORKSPACES</div>
+              <h1>Projects</h1>
+              <p>Give people and AI tools a place to work together.</p>
+            </div>
+            <button id="show-create" data-admin>
+              Create project <span aria-hidden="true">+</span>
+            </button>
+          </div>
+          <div class="scope-strip">
+            <span>Organisation</span><i aria-hidden="true">/</i
+            ><span>Department</span><i aria-hidden="true">/</i
+            ><strong>Project</strong
+            ><span class="strip-note"
+              >Access follows your scope assignments</span
+            >
+          </div>
+          <form id="resolve-form" class="inline-form">
+            <label for="project-code">Open by project code</label
+            ><input
+              id="project-code"
+              placeholder="Paste a project code"
+              maxlength="100"
+              required
+            /><button class="secondary">Find project</button>
+          </form>
+          <section id="create-panel" class="form-panel" hidden data-admin>
+            <h2>Create a shared workspace</h2>
+            <form id="create-form" class="form-grid">
+              <label
+                >Name<input
+                  name="name"
+                  required
+                  maxlength="200"
+                  placeholder="e.g. Platform modernisation"
+              /></label>
+              <label
+                >Type<select name="kind">
+                  <option value="project">Project</option>
+                  <option value="department">Department</option>
+                </select></label
+              >
+              <label
+                >Parent scope<select
+                  name="parent_id"
+                  id="parent-select"
+                  required
+                ></select
+              ></label>
+              <button>Create workspace</button>
+            </form>
+          </section>
+          <div class="table-heading">
+            <h2>Your workspaces</h2>
+            <span id="project-count"></span>
+          </div>
+          <div id="project-list" class="project-list"></div>
+          <section id="project-detail" class="form-panel" hidden>
+            <h2 id="detail-title"></h2>
+            <p id="detail-code" class="code-display"></p>
+            <p>
+              Share this code with assigned collaborators. An administrator must
+              grant access before they can open the project.
+            </p>
+            <button id="copy-code" class="secondary">Copy project code</button>
+          </section>
+        </section>
+        <section id="people-view" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">EXPLICIT PERMISSIONS</div>
+              <h1>People &amp; access</h1>
+              <p>Give each person or AI instance its own identity.</p>
+            </div>
+          </div>
+          <div class="two-columns">
+            <section class="form-panel">
+              <h2>Add a person or AI client</h2>
+              <form id="person-form">
+                <label
+                  >Display name<input
+                    name="name"
+                    required
+                    maxlength="200"
+                    placeholder="e.g. Alex · Claude desktop" /></label
+                ><button>Create identity</button>
+              </form>
+              <p class="hint">
+                A new identity has no project access until you assign it.
+              </p>
+            </section>
+            <section class="form-panel">
+              <h2>Assign access</h2>
+              <form id="grant-form" class="form-grid">
+                <label
+                  >Person or client<select
+                    name="principal_id"
+                    id="person-select"
+                    required
+                  ></select></label
+                ><label
+                  >Scope<select
+                    name="scope_id"
+                    id="scope-select"
+                    required
+                  ></select></label
+                ><label
+                  >Role<select name="role">
+                    <option value="reader">Reader · read shared context</option>
+                    <option value="writer" selected>
+                      Writer · contribute and collaborate
+                    </option>
+                    <option value="reviewer">
+                      Reviewer · review memory and results
+                    </option>
+                    <option value="admin">
+                      Scope admin · also inspect audit
+                    </option>
+                  </select></label
+                ><button>Save access</button>
+              </form>
+            </section>
+          </div>
+          <section id="credential-panel" class="credential-panel" hidden>
+            <h2>Save this new access token</h2>
+            <p>
+              Shown once. Send it to the intended person using your
+              organisation's secure channel.
+            </p>
+            <output id="issued-token"></output
+            ><button id="dismiss-token" class="secondary">
+              I have saved it
+            </button>
+          </section>
+          <h2>People and clients</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="people-list"></tbody>
+            </table>
+          </div>
+          <h2>Access assignments</h2>
+          <p class="hint">
+            Parent permissions are inherited. Removing a project assignment does
+            not remove access granted by its department or organisation.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Person / client</th>
+                  <th>Scope</th>
+                  <th>Role</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="grants-list"></tbody>
+            </table>
+          </div>
+        </section>
+        <section id="reviews-view" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">REVIEW BEFORE SHARING</div>
+              <h1>Memory reviews</h1>
+              <p>Review proposed context before it becomes shared memory.</p>
+            </div>
+          </div>
+          <label class="scope-filter"
+            >Workspace<select id="review-scope"></select
+          ></label>
+          <div id="review-list"></div>
+        </section>
+        <section id="audit-view" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">ACCOUNTABILITY</div>
+              <h1>Audit trail</h1>
+              <p>See who changed shared context and project access.</p>
+            </div>
+          </div>
+          <label class="scope-filter"
+            >Workspace<select id="audit-scope"></select
+          ></label>
+          <div id="audit-list"></div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

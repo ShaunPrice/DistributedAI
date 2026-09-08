@@ -1,0 +1,11 @@
+.git
+.venv
+.env*
+.secrets
+**/__pycache__
+.pytest_cache
+.ruff_cache
+*.dump
+*.db
+outputs
+infra

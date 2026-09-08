@@ -1,0 +1,17 @@
+services:
+  test:
+    image: distributedai-test:0.1.0
+    build:
+      context: .
+      target: test
+    environment:
+      RUN_POSTGRES_TESTS: "1"
+      DB_HOST: db
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    depends_on:
+      db: {condition: service_healthy}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

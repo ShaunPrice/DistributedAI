@@ -1,0 +1,22 @@
+# Usage: docker compose -f compose.yaml -f compose.internet.yaml up -d
+services:
+  api:
+    environment:
+      PUBLIC_URL: https://${DOMAIN:?Set DOMAIN}/mcp
+      ALLOWED_HOSTS: ${DOMAIN},127.0.0.1:*,localhost:*
+  edge:
+    image: caddy:2.10.2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+volumes:
+  caddy_data:
+  caddy_config:

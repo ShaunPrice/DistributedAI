@@ -1,0 +1,10 @@
+{$DOMAIN} {
+    request_body {
+        max_size 128KB
+    }
+    reverse_proxy api:8090
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+    }
+}

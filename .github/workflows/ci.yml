@@ -1,0 +1,28 @@
+name: Validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.8.22'
+      - run: uv sync --frozen --python 3.12
+      - run: uv run ruff check distributedai tests scripts
+      - run: uv run pytest -q
+      - run: python3 scripts/setup.py --generate-only
+      - run: docker compose -f compose.yaml -f compose.test.yaml build test
+      - run: docker compose -f compose.yaml -f compose.test.yaml run --rm test
+      - if: always()
+        run: docker compose -f compose.yaml -f compose.test.yaml down --volumes
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive infra
+      - run: terraform -chdir=infra/aws init -backend=false
+      - run: terraform -chdir=infra/aws validate
