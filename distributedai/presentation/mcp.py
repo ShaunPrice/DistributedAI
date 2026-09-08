@@ -116,7 +116,7 @@ def create_server(store: WorkspaceApplication, settings: Settings) -> FastMCP:
         access = await verifier.verify_token(access.token)
         if access is None:
             raise ValueError("Credential revoked or account unavailable")
-        if "connection" in access.scopes and operation in {"principal_create", "principal_revoke", "grant", "grant_revoke", "scope_create"}:
+        if "connection" in access.scopes and operation in {"principal_create", "principal_revoke", "grant", "grant_revoke", "scope_create", "scope_move", "scope_merge", "scope_delete", "scope_owner_set", "scope_policy_set"}:
             raise ValueError("Use the management console for access administration")
         # Revalidation here also fences tokens revoked after the HTTP middleware ran.
         principal = await asyncio.to_thread(store.resolve_principal, access.client_id)
@@ -148,7 +148,7 @@ def create_server(store: WorkspaceApplication, settings: Settings) -> FastMCP:
     @mcp.tool(annotations=read)
     async def scope_list() -> dict[str, Any]:
         """List only scopes visible to your authenticated identity."""
-        return await call("scope_list", {})
+        return await call("scope_list", {"include_personal": True})
 
     @mcp.tool(annotations=write)
     async def principal_create(name: str, token: str) -> dict[str, Any]:
@@ -247,6 +247,56 @@ def create_server(store: WorkspaceApplication, settings: Settings) -> FastMCP:
     async def proposal_list(scope_id: str, limit: int = 20) -> dict[str, Any]:
         """Reviewer: list proposals for independent review, including quarantine warnings."""
         return await call("proposal_list", locals())
+
+    @mcp.tool(annotations=read)
+    async def personal_scope() -> dict[str, Any]:
+        """Open your own private memory workspace. Organisation roles do not grant content access."""
+        return await call("personal_scope", {})
+
+    @mcp.tool(annotations=write)
+    async def scope_move(scope_id: str, parent_id: str) -> dict[str, Any]:
+        """Admin: move a project or department. Access inherited from its parent changes."""
+        return await call("scope_move", locals())
+
+    @mcp.tool(annotations=write)
+    async def scope_merge(source_id: str, target_id: str) -> dict[str, Any]:
+        """Organisation admin: merge departments while preserving projects; conflicts reject atomically."""
+        return await call("scope_merge", locals())
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False))
+    async def scope_delete(scope_id: str, delete_contents: bool = False) -> dict[str, Any]:
+        """Delete a workspace; explicit delete_contents purges its data. Child projects always block deletion."""
+        return await call("scope_delete", locals())
+
+    @mcp.tool(annotations=write)
+    async def scope_owner_set(scope_id: str, principal_id: str) -> dict[str, Any]:
+        """Organisation admin: transfer a shared workspace's ownership to an active colleague."""
+        return await call("scope_owner_set", locals())
+
+    @mcp.tool(annotations=write)
+    async def scope_policy_set(scope_id: str, principal_id: str, can_export: bool, can_delete: bool) -> dict[str, Any]:
+        """Organisation admin: independently allow or revoke a person's export and delete permissions."""
+        return await call("scope_policy_set", locals())
+
+    @mcp.tool(annotations=read)
+    async def memory_export(scope_id: str) -> dict[str, Any]:
+        """Owner/admin: export workspace memory and history when export permission permits."""
+        return await call("memory_export", locals())
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=False))
+    async def memory_delete(scope_id: str, key: str) -> dict[str, Any]:
+        """Owner/admin with delete permission: permanently delete a memory key and its history."""
+        return await call("memory_delete", locals())
+
+    @mcp.tool(annotations=read)
+    async def scope_backup(scope_id: str) -> dict[str, Any]:
+        """Scope admin: obtain a bounded encrypted-payload archive; structural metadata is visible."""
+        return await call("scope_backup", locals())
+
+    @mcp.tool(annotations=read)
+    async def organisation_backup() -> dict[str, Any]:
+        """Organisation admin: encrypted-payload archive, excluding credentials and key material."""
+        return await call("organisation_backup", {})
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def health(request):

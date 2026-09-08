@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+{
+    auto_https off
+    admin off
+    servers {
+        timeouts {
+            read_body 15s
+            read_header 10s
+            idle 60s
+        }
+    }
+}
+:8080 {
+    root * /srv/distributedai
+    header {
+        Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+        Cache-Control no-store
+        -Server
+    }
+    request_body {
+        max_size 128KB
+    }
+    @manage path /manage /manage/
+    handle @manage {
+        rewrite * /index.html
+        file_server
+    }
+    @platform path /platform /platform/
+    handle @platform {
+        rewrite * /platform.html
+        file_server
+    }
+    handle_path /manage/assets/* {
+        file_server
+    }
+    handle_path /platform/assets/* {
+        file_server
+    }
+    handle {
+        reverse_proxy {
+            dynamic a api 8090 {
+                refresh 5s
+                versions ipv4
+            }
+            lb_policy round_robin
+            fail_duration 10s
+            max_fails 1
+            # No automatic retries: MCP POST operations may already have committed.
+            header_up X-Forwarded-For {http.request.remote.host}
+            transport http {
+                dial_timeout 2s
+                response_header_timeout 30s
+            }
+        }
+    }
+}

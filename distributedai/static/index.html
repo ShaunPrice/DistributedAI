@@ -162,7 +162,7 @@
                 together.
               </p>
             </div>
-            <button id="show-create" data-admin>
+            <button id="show-create">
               Create project <span aria-hidden="true">+</span>
             </button>
           </div>
@@ -198,7 +198,7 @@
               required
             /><button class="secondary">Find project</button>
           </form>
-          <section id="create-panel" class="form-panel" hidden data-admin>
+          <section id="create-panel" class="form-panel" hidden>
             <h2>Create a shared workspace</h2>
             <form id="create-form" class="form-grid">
               <label
@@ -229,14 +229,78 @@
             <span id="project-count"></span>
           </div>
           <div id="project-list" class="project-list"></div>
+          <button id="backup-organisation" class="secondary" data-admin>Back up organisation</button>
           <section id="project-detail" class="form-panel" hidden>
             <h2 id="detail-title"></h2>
             <p id="detail-code" class="code-display"></p>
-            <p>
+            <p id="detail-sharing">
               Share this code with assigned collaborators. An administrator must
               grant access before they can open the project.
             </p>
             <button id="copy-code" class="secondary">Copy project code</button>
+            <div class="workspace-actions">
+              <button id="export-memory" class="secondary">Export memories</button>
+              <button id="backup-scope" class="secondary">Back up workspace</button>
+              <button id="delete-scope" class="danger">Delete workspace</button>
+            </div>
+            <p id="workspace-permissions" class="muted"></p>
+            <details id="workspace-management">
+              <summary>Manage workspace structure</summary>
+              <form id="move-form" class="inline-form">
+                <label>Move to department<select id="move-parent" name="parent_id" required></select></label>
+                <button>Move workspace</button>
+              </form>
+              <form id="merge-form" class="inline-form">
+                <label>Merge into department<select id="merge-target" name="target_id" required></select></label>
+                <button>Merge departments</button>
+              </form>
+              <p>Moving or merging changes access inherited from the parent department. Direct project assignments remain in place.</p>
+            </details>
+            <form id="owner-form" class="inline-form" data-admin>
+              <label>Workspace owner<select id="owner-person" name="principal_id" required></select></label>
+              <button class="secondary">Transfer ownership</button>
+            </form>
+            <details id="workspace-policy" data-admin>
+              <summary>Export and delete permissions</summary>
+              <form id="policy-form" class="form-grid">
+                <label>User<select id="policy-person" name="principal_id" required></select></label>
+                <label>Export<select name="can_export"><option value="true">Allowed</option><option value="false">Revoked</option></select></label>
+                <label>Delete<select name="can_delete"><option value="true">Allowed</option><option value="false">Revoked</option></select></label>
+                <button>Save permissions</button>
+              </form>
+              <p id="policy-effective"></p>
+              <p>These permissions are independent. Granting export does not grant access to someone else's private memories.</p>
+            </details>
+            <details id="workspace-access">
+              <summary>Assign an existing collaborator</summary>
+              <form id="scoped-grant-form" class="form-grid">
+                <label>Principal ID<input name="principal_id" required maxlength="64" autocomplete="off" /></label>
+                <label>Role<select name="role"><option>reader</option><option>writer</option><option>reviewer</option><option>admin</option></select></label>
+                <button>Assign access</button>
+              </form>
+            </details>
+            <details id="workspace-memories">
+              <summary>Workspace memories</summary>
+              <form id="memory-search-form" class="inline-form">
+                <label>Search<input name="query" maxlength="500" placeholder="Search this workspace" /></label>
+                <button class="secondary">Search memories</button>
+              </form>
+              <div id="memory-results"></div>
+              <form id="memory-propose-form" class="form-grid">
+                <label>Memory key<input name="key" required maxlength="200" placeholder="e.g. working-preferences" /></label>
+                <label>Current version<input name="expected_version" type="number" min="0" value="0" required /></label>
+                <label class="full-width">Content<textarea name="content" required maxlength="20000" rows="5"></textarea></label>
+                <button>Save memory proposal</button>
+              </form>
+              <p>New keys start at version 0. Personal memories can be approved by their owner; shared memories require another reviewer.</p>
+            </details>
+            <details id="memory-removal">
+              <summary>Delete a memory</summary>
+              <form id="memory-delete-form" class="inline-form">
+                <label>Memory key<input name="key" required maxlength="200" /></label>
+                <button class="danger">Delete memory and history</button>
+              </form>
+            </details>
           </section>
         </section>
         <section id="people-view" class="view" hidden>

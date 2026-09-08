@@ -908,3 +908,14 @@ tr:last-child td {
 }
 
 .first-use{border-top:1px solid var(--line);padding:18px 0;margin:4px 0 12px}.first-use summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--ink)}.first-use p{font-size:12px;margin:13px 0 0}.first-use code{overflow-wrap:anywhere;font-size:11px}
+
+.workspace-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.25rem 0; }
+#project-detail details { margin-top: 1rem; border-top: 1px solid var(--border, #dce3eb); padding-top: 1rem; }
+#project-detail summary { cursor: pointer; font-weight: 600; padding: .5rem 0; }
+#backup-organisation { margin-top: 1rem; }
+
+.memory-card { padding: 1rem; border: 1px solid #dce3eb; border-radius: .75rem; margin: .75rem 0; }
+.memory-card pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.full-width { grid-column: 1 / -1; }
+
+textarea { width: 100%; box-sizing: border-box; border: 1px solid #cad5df; border-radius: .6rem; padding: .8rem; font: inherit; color: inherit; background: #fff; resize: vertical; }

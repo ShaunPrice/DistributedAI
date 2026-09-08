@@ -104,7 +104,7 @@ async def test_http_auth_discovery_and_tool_binding(settings):
             assert result.status_code == 200
             assert not result.json()["result"].get("isError")
             assert result.json()["result"]["structuredContent"] == {"scopes": []}
-            assert store.calls[-1] == ("client", "scope_list", {})
+            assert store.calls[-1] == ("client", "scope_list", {"include_personal": True})
             result = await client.post("/mcp", json={"jsonrpc": "2.0", "id": 3, "method": "tools/call",
                                       "params": {"name": "memory_search", "arguments": {"scope_id": "scope"}}}, headers=headers)
             assert not result.json()["result"].get("isError")

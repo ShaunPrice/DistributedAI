@@ -31,13 +31,14 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    delete,
     event,
     or_,
     select,
     text,
     update,
 )
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .. import security
@@ -128,6 +129,22 @@ class Scope(Base):
     # Non-secret shareable locator for project scopes (never a permission), globally unique.
     project_code: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class ScopeOwnership(Base):
+    __tablename__ = "scope_ownership"
+    scope_id: Mapped[str] = mapped_column(String(32), ForeignKey("scopes.id"), primary_key=True)
+    org_id: Mapped[str] = mapped_column(String(32), ForeignKey("orgs.id"), index=True)
+    principal_id: Mapped[str] = mapped_column(String(32), ForeignKey("principals.id"), index=True)
+
+
+class ScopePermission(Base):
+    __tablename__ = "scope_permissions"
+    scope_id: Mapped[str] = mapped_column(String(32), ForeignKey("scopes.id"), primary_key=True)
+    principal_id: Mapped[str] = mapped_column(String(32), ForeignKey("principals.id"), primary_key=True)
+    org_id: Mapped[str] = mapped_column(String(32), ForeignKey("orgs.id"), index=True)
+    can_export: Mapped[bool] = mapped_column(Boolean, default=True)
+    can_delete: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class MemoryLock(Base):
@@ -336,6 +353,8 @@ def _escape_like(term: str) -> str:
 
 
 _OPERATIONS = {
+    "scope_policy_get", "personal_scope", "scope_move", "scope_merge", "scope_delete", "scope_policy_set", "scope_owner_set",
+    "memory_export", "memory_delete", "scope_backup", "organisation_backup",
     "scope_create", "scope_list", "principal_create", "principal_revoke", "principal_list",
     "grant", "grant_list", "grant_revoke", "project_resolve",
     "memory_propose", "memory_review", "memory_search", "memory_history", "proposal_list",
@@ -411,9 +430,10 @@ class Store:
                              token_digest=_digest(token), is_org_admin=True)
         sess.add(admin)
         sess.flush([admin])
+        personal = self._ensure_personal(sess, admin)
         self._audit(sess, org_row.id, admin.id, "bootstrap",
                     record_id=admin.id, scope_id=root.id)
-        return {"org_id": org_row.id, "principal_id": admin.id, "root_scope_id": root.id}
+        return {"org_id": org_row.id, "principal_id": admin.id, "root_scope_id": root.id, "personal_scope_id": personal.id}
 
     def bootstrap(self, org: str, principal: str, token: str) -> dict:
         """Idempotent installer entry point. On a fresh database (no principals anywhere) it
@@ -512,15 +532,25 @@ class Store:
         handler = getattr(self, f"_op_{operation}")
         try:
             with Session(self._engine) as sess, sess.begin():
+                if operation in {"memory_export", "scope_backup", "organisation_backup"} and self._engine.dialect.name == "postgresql":
+                    sess.connection(execution_options={"isolation_level": "REPEATABLE READ"})
                 dbp = sess.get(PrincipalRow, principal.id)
                 if (dbp is None or not dbp.active or dbp.org_id != principal.org_id
                         or dbp.name != principal.name):
                     raise ServiceError("denied", "principal is unknown, revoked, or mismatched")
                 # dbp (database truth) is authoritative from here on; the caller-supplied
                 # is_org_admin flag is deliberately ignored.
+                if operation in {"scope_create", "scope_move", "scope_merge", "scope_delete", "scope_policy_set", "scope_owner_set",
+                                 "memory_propose", "memory_review", "memory_delete", "memory_export", "scope_backup",
+                                 "organisation_backup", "message_send", "job_create", "grant", "grant_revoke"}:
+                    sess.execute(select(Org.id).where(Org.id == dbp.org_id).with_for_update()).scalar_one()
                 return handler(sess, dbp, arguments)
         except IntegrityError as exc:
             raise ServiceError("conflict", "concurrent write conflict") from exc
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) in {"40001", "40P01"}:
+                raise ServiceError("conflict", "concurrent transaction conflict; reconcile and retry") from None
+            raise
 
     # -- authorisation helpers ---------------------------------------------
 
@@ -564,7 +594,13 @@ class Store:
         the granted scope and its descendants, never across organisations)."""
         if scope.org_id != principal_row.org_id:
             return None
+        if scope.kind == "personal":
+            owner = sess.get(ScopeOwnership, scope.id)
+            return "admin" if owner and owner.principal_id == principal_row.id else None
         if principal_row.is_org_admin:
+            return "admin"
+        owner = sess.get(ScopeOwnership, scope.id)
+        if owner and owner.principal_id == principal_row.id:
             return "admin"
         chain_ids = [s.id for s in self._scope_chain(sess, scope)]
         rows = sess.execute(
@@ -602,11 +638,11 @@ class Store:
 
     def _op_scope_create(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
         _check_keys(args, {"name", "kind", "parent_id"})
-        self._require_org_admin(dbp)
         name = _str_arg(args, "name")
         kind = _enum_arg(args, "kind", CREATABLE_SCOPE_KINDS)
         parent = self._get_scope(sess, dbp.org_id, args.get("parent_id"))
-        if parent.kind == "project":
+        self._require_role(sess, dbp, parent, "admin")
+        if parent.kind in {"project", "personal"}:
             raise ServiceError("invalid_argument", "a project cannot contain child scopes")
         if kind == "department" and parent.kind not in ("organisation", "department"):
             raise ServiceError("invalid_argument",
@@ -615,22 +651,24 @@ class Store:
         scope = Scope(id=_new_id(), org_id=dbp.org_id, parent_id=parent.id,
                       name=name, kind=kind, project_code=code)
         sess.add(scope)
+        sess.flush([scope])
+        sess.add(ScopeOwnership(scope_id=scope.id, org_id=dbp.org_id, principal_id=dbp.id))
         self._audit(sess, dbp.org_id, dbp.id, "scope_create",
                     record_id=scope.id, scope_id=scope.id)
         return {"scope_id": scope.id, "name": name, "kind": kind, "parent_id": parent.id,
                 "project_code": code}
 
     def _op_scope_list(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        _check_keys(args, set())
-        scopes = sess.execute(
-            select(Scope).where(Scope.org_id == dbp.org_id).order_by(Scope.created_at)
-        ).scalars().all()
-        visible = [s for s in scopes if self._role_for(sess, dbp, s) is not None]
-        return {"scopes": [
-            {"scope_id": s.id, "name": s.name, "kind": s.kind, "parent_id": s.parent_id,
-             "project_code": s.project_code}
-            for s in visible
-        ]}
+        _check_keys(args, {"include_personal"})
+        include_personal = args.get("include_personal", False)
+        if type(include_personal) is not bool:
+            raise ServiceError("invalid_argument", "include_personal must be boolean")
+        if include_personal:
+            self._ensure_personal(sess, dbp)
+        scopes = sess.execute(select(Scope).where(Scope.org_id == dbp.org_id).order_by(Scope.created_at)).scalars().all()
+        visible = [scope for scope in scopes if (include_personal or scope.kind != "personal")
+                   and self._role_for(sess, dbp, scope) is not None]
+        return {"scopes": [self._scope_dto(sess, dbp, scope) for scope in visible]}
 
     def _op_project_resolve(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
         _check_keys(args, {"project_code"})
@@ -654,8 +692,10 @@ class Store:
         row = PrincipalRow(id=_new_id(), org_id=dbp.org_id, name=name,
                            token_digest=_digest(token), is_org_admin=False)
         sess.add(row)
+        sess.flush([row])
+        personal = self._ensure_personal(sess, row)
         self._audit(sess, dbp.org_id, dbp.id, "principal_create", record_id=row.id)
-        return {"principal_id": row.id, "name": name}
+        return {"principal_id": row.id, "name": name, "personal_scope_id": personal.id}
 
     def _op_principal_revoke(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
         _check_keys(args, {"principal_id"})
@@ -684,7 +724,6 @@ class Store:
 
     def _op_grant(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
         _check_keys(args, {"principal_id", "scope_id", "role"})
-        self._require_org_admin(dbp)
         role = _enum_arg(args, "role", ROLES)
         pid = _str_arg(args, "principal_id", max_len=64)
         target = sess.execute(
@@ -695,6 +734,9 @@ class Store:
         if target is None:
             raise ServiceError("not_found", "active principal not found in this organisation")
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        if scope.kind == "personal":
+            raise ServiceError("denied", "personal scopes cannot be shared through grants")
+        self._require_role(sess, dbp, scope, "admin")
         existing = sess.execute(
             select(Grant).where(Grant.principal_id == target.id, Grant.scope_id == scope.id)
         ).scalar_one_or_none()
@@ -711,7 +753,10 @@ class Store:
                 "scope_id": scope.id, "role": role}
 
     def _op_principal_list(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        _check_keys(args, set())
+        _check_keys(args, {"include_personal"})
+        include_personal = args.get("include_personal", False)
+        if type(include_personal) is not bool:
+            raise ServiceError("invalid_argument", "include_personal must be boolean")
         self._require_org_admin(dbp)
         rows = sess.execute(
             select(PrincipalRow).where(PrincipalRow.org_id == dbp.org_id)
@@ -720,7 +765,8 @@ class Store:
         # Token digests are deliberately excluded from every read surface.
         return {"principals": [
             {"principal_id": p.id, "name": p.name, "active": p.active,
-             "is_org_admin": p.is_org_admin}
+             "is_org_admin": p.is_org_admin,
+             **({"personal_scope_id": self._ensure_personal(sess, p).id} if include_personal else {})}
             for p in rows
         ]}
 
@@ -738,9 +784,11 @@ class Store:
 
     def _op_grant_revoke(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
         _check_keys(args, {"principal_id", "scope_id"})
-        self._require_org_admin(dbp)
         pid = _str_arg(args, "principal_id", max_len=64)
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        if scope.kind == "personal":
+            raise ServiceError("denied", "personal scopes cannot be shared through grants")
+        self._require_role(sess, dbp, scope, "admin")
         grant = sess.execute(
             select(Grant).where(Grant.principal_id == pid, Grant.scope_id == scope.id,
                                 Grant.org_id == dbp.org_id)
@@ -762,6 +810,307 @@ class Store:
         self._audit(sess, dbp.org_id, dbp.id, "grant_revoke",
                     record_id=grant.id, scope_id=scope.id)
         return {"principal_id": grant.principal_id, "scope_id": scope.id, "revoked": True}
+
+    def _ensure_personal(self, sess, principal):
+        sess.execute(select(PrincipalRow.id).where(PrincipalRow.id == principal.id).with_for_update()).scalar_one()
+        existing = sess.execute(select(Scope).join(ScopeOwnership, ScopeOwnership.scope_id == Scope.id).where(
+            ScopeOwnership.principal_id == principal.id, Scope.org_id == principal.org_id,
+            Scope.kind == "personal")).scalar_one_or_none()
+        if existing is not None:
+            return existing
+        scope = Scope(id=_new_id(), org_id=principal.org_id, parent_id=None,
+                      name="Personal memory", kind="personal")
+        sess.add(scope)
+        sess.flush([scope])
+        sess.add(ScopeOwnership(scope_id=scope.id, org_id=principal.org_id, principal_id=principal.id))
+        sess.flush()
+        return scope
+
+    def _permission_flags(self, sess, dbp, scope):
+        role = self._role_for(sess, dbp, scope)
+        eligible = role == "admin"
+        chain = [entry.id for entry in self._scope_chain(sess, scope)]
+        policies = sess.execute(select(ScopePermission).where(ScopePermission.org_id == dbp.org_id,
+            ScopePermission.principal_id == dbp.id, ScopePermission.scope_id.in_(chain))).scalars().all()
+        return {"can_export": eligible and all(row.can_export for row in policies),
+                "can_delete": eligible and all(row.can_delete for row in policies)}
+
+    def _scope_dto(self, sess, dbp, scope):
+        role = self._role_for(sess, dbp, scope)
+        owner = sess.get(ScopeOwnership, scope.id)
+        return {"scope_id": scope.id, "name": scope.name, "kind": scope.kind,
+                "parent_id": scope.parent_id, "project_code": scope.project_code,
+                "role": role, "owner_id": owner.principal_id if owner else None,
+                "is_owner": bool(owner and owner.principal_id == dbp.id),
+                "can_manage": role == "admin", **self._permission_flags(sess, dbp, scope)}
+
+    def _op_personal_scope(self, sess, dbp, args):
+        _check_keys(args, set())
+        return self._scope_dto(sess, dbp, self._ensure_personal(sess, dbp))
+
+    def _op_scope_policy_get(self, sess, dbp, args):
+        _check_keys(args, {"scope_id", "principal_id"})
+        self._require_org_admin(dbp)
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        pid = _str_arg(args, "principal_id", max_len=64)
+        target = sess.get(PrincipalRow, pid)
+        if target is None or target.org_id != dbp.org_id:
+            raise ServiceError("not_found", "principal unavailable")
+        policy = sess.get(ScopePermission, (scope.id, pid))
+        return {"scope_id": scope.id, "principal_id": pid,
+                "can_export": policy.can_export if policy else True,
+                "can_delete": policy.can_delete if policy else True,
+                "effective": self._permission_flags(sess, target, scope)}
+
+    def _op_scope_policy_set(self, sess, dbp, args):
+        _check_keys(args, {"scope_id", "principal_id", "can_export", "can_delete"})
+        self._require_org_admin(dbp)
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        pid = _str_arg(args, "principal_id", max_len=64)
+        target = sess.execute(select(PrincipalRow).where(PrincipalRow.id == pid,
+            PrincipalRow.org_id == dbp.org_id)).scalar_one_or_none()
+        if target is None:
+            raise ServiceError("not_found", "principal unavailable")
+        values = {name: _bool_arg(args, name) for name in ("can_export", "can_delete")}
+        policy = sess.get(ScopePermission, (scope.id, pid))
+        if policy is None:
+            policy = ScopePermission(scope_id=scope.id, principal_id=pid, org_id=dbp.org_id, **values)
+            sess.add(policy)
+        else:
+            policy.can_export, policy.can_delete = values["can_export"], values["can_delete"]
+        self._audit(sess, dbp.org_id, dbp.id, "scope_policy_set", record_id=pid, scope_id=scope.id)
+        return {"scope_id": scope.id, "principal_id": pid, **values}
+
+    def _op_scope_owner_set(self, sess, dbp, args):
+        _check_keys(args, {"scope_id", "principal_id"})
+        self._require_org_admin(dbp)
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        if scope.kind not in {"department", "project"}:
+            raise ServiceError("denied", "personal and organisation ownership cannot be transferred")
+        pid = _str_arg(args, "principal_id", max_len=64)
+        target = sess.execute(select(PrincipalRow).where(PrincipalRow.id == pid,
+            PrincipalRow.org_id == dbp.org_id, PrincipalRow.active.is_(True))).scalar_one_or_none()
+        if target is None:
+            raise ServiceError("not_found", "active principal unavailable")
+        owner = sess.get(ScopeOwnership, scope.id)
+        previous = owner.principal_id if owner else None
+        if owner:
+            owner.principal_id = target.id
+        else:
+            sess.add(ScopeOwnership(scope_id=scope.id, org_id=dbp.org_id, principal_id=target.id))
+        self._audit(sess, dbp.org_id, dbp.id, "scope_owner_set", record_id=target.id, scope_id=scope.id)
+        return {"scope_id": scope.id, "owner_id": target.id, "previous_owner_id": previous}
+
+    def _retain_scope_restrictions(self, sess, source, destination):
+        chain_ids = [entry.id for entry in self._scope_chain(sess, source)]
+        policies = sess.execute(select(ScopePermission).where(ScopePermission.org_id == source.org_id,
+            ScopePermission.scope_id.in_(chain_ids))).scalars().all()
+        for policy in policies:
+            if policy.can_export and policy.can_delete:
+                continue
+            existing = sess.get(ScopePermission, (destination.id, policy.principal_id))
+            if existing:
+                existing.can_export = existing.can_export and policy.can_export
+                existing.can_delete = existing.can_delete and policy.can_delete
+            else:
+                sess.add(ScopePermission(scope_id=destination.id, principal_id=policy.principal_id,
+                    org_id=source.org_id, can_export=policy.can_export, can_delete=policy.can_delete))
+                sess.flush()
+
+    def _op_scope_move(self, sess, dbp, args):
+        _check_keys(args, {"scope_id", "parent_id"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        parent = self._get_scope(sess, dbp.org_id, args.get("parent_id"))
+        self._require_role(sess, dbp, scope, "admin")
+        self._require_role(sess, dbp, parent, "admin")
+        if scope.kind not in {"department", "project"} or parent.kind not in {"organisation", "department"}:
+            raise ServiceError("invalid_argument", "only departments/projects can move under an organisation/department")
+        if scope.id in {entry.id for entry in self._scope_chain(sess, parent)}:
+            raise ServiceError("invalid_argument", "scope move would create a cycle")
+        self._retain_scope_restrictions(sess, scope, scope)
+        previous = scope.parent_id
+        scope.parent_id = parent.id
+        self._audit(sess, dbp.org_id, dbp.id, "scope_move", record_id=scope.id, scope_id=scope.id)
+        return {"scope_id": scope.id, "parent_id": parent.id, "previous_parent_id": previous}
+
+    @staticmethod
+    def _scope_has_data(sess, scope_id):
+        return any(sess.execute(select(model.id).where(model.scope_id == scope_id).limit(1)).first()
+                   for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job))
+
+    def _delete_empty_scope(self, sess, scope):
+        for model in (Grant, ScopeOwnership, ScopePermission, MemoryLock):
+            sess.execute(delete(model).where(model.scope_id == scope.id))
+        sess.delete(scope)
+
+    def _op_scope_delete(self, sess, dbp, args):
+        _check_keys(args, {"scope_id", "delete_contents"})
+        delete_contents = args.get("delete_contents", False)
+        if type(delete_contents) is not bool:
+            raise ServiceError("invalid_argument", "delete_contents must be boolean")
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "admin")
+        if scope.kind not in {"department", "project"}:
+            raise ServiceError("denied", "organisation and personal containers cannot be deleted")
+        if not self._permission_flags(sess, dbp, scope)["can_delete"]:
+            raise ServiceError("denied", "delete permission revoked")
+        if sess.execute(select(Scope.id).where(Scope.parent_id == scope.id).limit(1)).first():
+            raise ServiceError("conflict", "move or delete all child scopes first")
+        if self._scope_has_data(sess, scope.id) and not delete_contents:
+            raise ServiceError("conflict", "scope contains retained memories, messages or jobs; explicit delete_contents required")
+        removed = 0
+        if delete_contents:
+            for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job):
+                result = sess.execute(delete(model).where(model.org_id == dbp.org_id, model.scope_id == scope.id))
+                removed += result.rowcount
+            if self.billing.enabled:
+                self.billing.recompute_usage(sess, dbp.org_id)
+        sid = scope.id
+        self._delete_empty_scope(sess, scope)
+        self._audit(sess, dbp.org_id, dbp.id, "scope_delete", record_id=sid)
+        return {"scope_id": sid, "deleted": True, "removed_rows": removed}
+
+    def _op_scope_merge(self, sess, dbp, args):
+        _check_keys(args, {"source_id", "target_id"})
+        self._require_org_admin(dbp)
+        source = self._get_scope(sess, dbp.org_id, args.get("source_id"))
+        target = self._get_scope(sess, dbp.org_id, args.get("target_id"))
+        if source.kind != "department" or target.kind != "department" or source.id == target.id:
+            raise ServiceError("invalid_argument", "merge requires two distinct departments")
+        if source.id in {entry.id for entry in self._scope_chain(sess, target)}:
+            raise ServiceError("invalid_argument", "cannot merge a department into its descendant")
+        if not self._permission_flags(sess, dbp, source)["can_delete"]:
+            raise ServiceError("denied", "delete permission revoked")
+        children = sess.execute(select(Scope).where(Scope.parent_id == source.id)).scalars().all()
+        target_names = set(sess.execute(select(Scope.name).where(Scope.parent_id == target.id, Scope.id != source.id)).scalars())
+        if any(child.name in target_names for child in children):
+            raise ServiceError("conflict", "child scope names collide")
+        def memory_keys(scope_id):
+            keys = set()
+            for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryLock):
+                keys.update(sess.execute(select(model.key).where(model.scope_id == scope_id)).scalars())
+            return keys
+        if memory_keys(source.id) & memory_keys(target.id):
+            raise ServiceError("conflict", "memory keys collide; resolve before merging")
+        # Preserve inherited denials; a hierarchy edit cannot bypass export/delete policy.
+        self._retain_scope_restrictions(sess, source, target)
+        for child in children:
+            child.parent_id = target.id
+        removed_grants = len(sess.execute(select(Grant.id).where(Grant.scope_id == source.id)).all())
+        for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryLock, Message, Job):
+            sess.execute(update(model).where(model.scope_id == source.id).values(scope_id=target.id))
+        sess.flush()
+        sid = source.id
+        self._delete_empty_scope(sess, source)
+        self._audit(sess, dbp.org_id, dbp.id, "scope_merge", record_id=sid, scope_id=target.id)
+        return {"source_id": sid, "target_id": target.id, "moved_children": len(children),
+                "removed_source_grants": removed_grants, "merged": True}
+
+    def _op_memory_delete(self, sess, dbp, args):
+        _check_keys(args, {"scope_id", "key"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "admin")
+        if not self._permission_flags(sess, dbp, scope)["can_delete"]:
+            raise ServiceError("denied", "delete permission revoked")
+        key = _str_arg(args, "key", max_len=MAX_KEY)
+        removed = 0
+        for model in (MemoryRecord, MemoryVersion, MemoryProposal):
+            result = sess.execute(delete(model).where(model.org_id == dbp.org_id,
+                model.scope_id == scope.id, model.key == key))
+            removed += result.rowcount
+        sess.execute(delete(MemoryLock).where(MemoryLock.scope_id == scope.id, MemoryLock.key == key))
+        if not removed:
+            raise ServiceError("not_found", "memory key unavailable")
+        if self.billing.enabled:
+            self.billing.recompute_usage(sess, dbp.org_id)
+        self._audit(sess, dbp.org_id, dbp.id, "memory_delete", scope_id=scope.id)
+        return {"scope_id": scope.id, "deleted": True, "removed_rows": removed}
+
+    def _export_rows(self, sess, dbp, scope, *, backup):
+        if backup and not hasattr(self, "crypto"):
+            raise ServiceError("invalid_state", "encrypted backup requires configured encryption")
+        models = (MemoryRecord, MemoryVersion, MemoryProposal)
+        if backup:
+            models += (Message, Job)
+        datasets, size, count = {}, 0, 0
+        for model in models:
+            statement = select(model.__table__ if backup else model).where(model.org_id == dbp.org_id)
+            if scope is not None:
+                statement = statement.where(model.scope_id == scope.id)
+            result = sess.execute(statement.order_by(model.id).limit(10001))
+            rows = result.mappings() if backup else result.scalars()
+            dataset = []
+            for value in rows:
+                row = dict(value) if backup else {column.name: getattr(value, column.name) for column in model.__table__.columns}
+                row.pop("claim_token_digest", None)
+                for name, item in list(row.items()):
+                    if isinstance(item, datetime):
+                        row[name] = _iso(item)
+                if backup:
+                    for field in {"content", "source", "findings", "body", "objective", "result"} & set(row):
+                        if row[field] is not None and not row[field].startswith(self.crypto.PREFIX):
+                            raise ServiceError("invalid_state", "plaintext payload cannot be backed up through this interface")
+                    # Memory keys and job idempotency labels can also contain personal data.
+                    for field in {"key", "idempotency_key"} & set(row):
+                        row[field] = self.crypto.encrypt(dbp.org_id, row["id"], "backup." + field, row[field])
+                size += len(json.dumps(row).encode())
+                count += 1
+                if size > 8 * 1024 * 1024 or count > 10000:
+                    raise ServiceError("too_large", "export exceeds 10000 rows or 8 MiB; use controlled offline backup")
+                dataset.append(row)
+            datasets[model.__tablename__] = dataset
+        return datasets
+
+    def _op_memory_export(self, sess, dbp, args):
+        _check_keys(args, {"scope_id"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "admin")
+        if not self._permission_flags(sess, dbp, scope)["can_export"]:
+            raise ServiceError("denied", "export permission revoked")
+        data = self._export_rows(sess, dbp, scope, backup=False)
+        self._audit(sess, dbp.org_id, dbp.id, "memory_export", scope_id=scope.id)
+        return {"format": "distributedai-memory-export/v1", "scope_id": scope.id,
+                "complete": True, "snapshot": "transaction", "data": data}
+
+    def _backup(self, sess, dbp, scope):
+        data = self._export_rows(sess, dbp, scope, backup=True)
+        scopes = sess.execute(select(Scope).where(Scope.org_id == dbp.org_id).limit(10001)).scalars().all()
+        if len(scopes) > 10000:
+            raise ServiceError("too_large", "backup hierarchy exceeds 10000 scopes")
+        if scope is not None:
+            scopes = [value for value in scopes if value.id == scope.id]
+        ids = [value.id for value in scopes]
+        data["scopes"] = [{"id": value.id, "org_id": value.org_id, "parent_id": value.parent_id,
+                           "kind": value.kind, "project_code": value.project_code,
+                           "name": self.crypto.encrypt(dbp.org_id, value.id, "backup.name", value.name)} for value in scopes]
+        for model in (ScopeOwnership, ScopePermission, Grant):
+            rows = sess.execute(select(model.__table__).where(model.org_id == dbp.org_id,
+                model.scope_id.in_(ids)).limit(10001)).mappings().all()
+            if len(rows) > 10000:
+                raise ServiceError("too_large", "backup metadata exceeds 10000 rows per table")
+            data[model.__tablename__] = [{key: _iso(value) if isinstance(value, datetime) else value
+                                         for key, value in dict(row).items()} for row in rows]
+        result = {"format": "distributedai-encrypted-backup/v1", "org_id": dbp.org_id,
+                  "scope_id": scope.id if scope else None, "complete": True, "data": data,
+                  "key_references": self.crypto.status(dbp.org_id),
+                  "requires_external_keys": True, "standalone_restore": False,
+                  "metadata_field_aad": "backup.<field>"}
+        if len(json.dumps(result).encode()) > 8 * 1024 * 1024:
+            raise ServiceError("too_large", "backup exceeds 8 MiB; use controlled offline backup")
+        self._audit(sess, dbp.org_id, dbp.id, "encrypted_backup", scope_id=scope.id if scope else None)
+        return result
+
+    def _op_scope_backup(self, sess, dbp, args):
+        _check_keys(args, {"scope_id"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        if not dbp.is_org_admin:
+            self._require_role(sess, dbp, scope, "admin")
+        return self._backup(sess, dbp, scope)
+
+    def _op_organisation_backup(self, sess, dbp, args):
+        _check_keys(args, set())
+        self._require_org_admin(dbp)
+        return self._backup(sess, dbp, None)
 
     # -- memory operations ---------------------------------------------------
 
@@ -839,7 +1188,7 @@ class Store:
         # Permission is checked on the proposal's ACTUAL scope, never a caller-supplied one.
         scope = self._get_scope(sess, dbp.org_id, proposal.scope_id)
         self._require_role(sess, dbp, scope, "reviewer")
-        if proposal.proposer_id == dbp.id:
+        if proposal.proposer_id == dbp.id and scope.kind != "personal":
             raise ServiceError("self_review", "a proposer cannot review their own proposal")
         if proposal.status != "pending":
             raise ServiceError("invalid_state", f"proposal is already '{proposal.status}'")

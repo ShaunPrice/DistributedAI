@@ -4,7 +4,8 @@ const $ = (id) => document.getElementById(id);
 let state = null,
   people = [],
   grants = [],
-  selectedCode = "";
+  selectedCode = "",
+  selectedScope = null;
 function node(tag, text, cls) {
   const el = document.createElement(tag);
   if (text !== undefined) el.textContent = text;
@@ -67,19 +68,21 @@ async function refresh() {
     if (el.id !== "create-panel") el.hidden = !state.principal.is_org_admin;
   });
   const scopes = state.scopes;
+  $("create-form").elements.kind.querySelector('[value="department"]').hidden = !state.principal.is_org_admin;
   options(
     "parent-select",
-    scopes.filter((s) => s.kind !== "project"),
+    scopes.filter((s) => s.kind !== "project" && s.kind !== "personal" && (s.can_manage || state.principal.is_org_admin)),
     "scope_id",
     (s) => s.name + " · " + s.kind,
   );
   ["scope-select", "review-scope", "audit-scope"].forEach((id) =>
-    options(id, scopes, "scope_id", (s) => s.name + " · " + s.kind),
+    options(id, id === "scope-select" ? scopes.filter((s) => s.kind !== "personal") : scopes, "scope_id", (s) => s.name + " · " + s.kind),
   );
+  $("show-create").hidden = !scopes.some((s) => s.kind !== "personal" && s.kind !== "project" && (s.can_manage || state.principal.is_org_admin));
   renderProjects();
   if (state.principal.is_org_admin) {
     const result = await Promise.all([
-      action("principal_list"),
+      action("principal_list", {include_personal: true}),
       action("grant_list"),
     ]);
     people = result[0].principals;
@@ -130,23 +133,50 @@ function renderProjects() {
     title.append(
       node(
         "small",
-        scope.kind + " · " + (parent ? parent.name : "Assigned workspace"),
+        scope.kind + " · " + (scope.kind === "personal" ? "Only you" : parent ? parent.name : "Assigned workspace"),
       ),
     );
     row.append(title);
     if (scope.project_code)
       row.append(node("span", scope.project_code, "project-code"));
-    else row.append(node("span", "Department", "badge"));
+    else row.append(node("span", scope.kind === "personal" ? "Private" : "Department", "badge"));
     row.append(node("span", "→"));
     row.addEventListener("click", () => detail(scope));
     list.append(row);
   });
 }
 function detail(scope) {
+  scope = state.scopes.find((s) => s.scope_id === scope.scope_id) || scope;
+  selectedScope = scope;
+  $("workspace-memories").hidden = scope.kind === "personal" && !scope.is_owner;
+  const manageable = !!scope.can_manage;
+  $("memory-results").replaceChildren();
+  $("memory-propose-form").hidden = !["writer", "reviewer", "admin"].includes(scope.role);
+  $("export-memory").hidden = !scope.can_export;
+  $("backup-scope").hidden = !manageable;
+  $("delete-scope").hidden = !scope.can_delete || ["personal", "organisation"].includes(scope.kind);
+  $("memory-removal").hidden = !scope.can_delete;
+  $("workspace-management").hidden = !manageable || ["personal", "organisation"].includes(scope.kind);
+  $("workspace-access").hidden = !manageable || scope.kind === "personal";
+  $("workspace-policy").hidden = !state.principal.is_org_admin;
+  $("owner-form").hidden = !state.principal.is_org_admin || scope.kind === "personal";
+  options("owner-person", people.filter((p) => p.active), "principal_id", (p) => p.name);
+  if (scope.owner_id) $("owner-person").value = scope.owner_id;
+  $("merge-form").hidden = !state.principal.is_org_admin || scope.kind !== "department";
+  $("workspace-permissions").textContent = scope.kind === "personal"
+    ? (scope.is_owner ? "Private to you. Export and deletion follow your organisation's permission policy." : "Policy administration only. This user's private content is not accessible.")
+    : "Export: " + (scope.can_export ? "allowed" : "unavailable") + " · Delete: " + (scope.can_delete ? "allowed" : "unavailable");
+  const parents = state.scopes.filter((s) => s.scope_id !== scope.scope_id && ["organisation", "department"].includes(s.kind) && s.can_manage);
+  options("move-parent", parents, "scope_id", (s) => s.name);
+  options("merge-target", parents.filter((s) => s.kind === "department"), "scope_id", (s) => s.name);
+  options("policy-person", people.filter((p) => p.active), "principal_id", (p) => p.name);
+  if (scope.owner_id) $("policy-person").value = scope.owner_id;
+  if (state.principal.is_org_admin) perform(loadPolicy);
   $("project-detail").hidden = false;
   $("detail-title").textContent = scope.name;
   selectedCode = scope.project_code || "";
-  $("detail-code").textContent = selectedCode || "Department workspace";
+  $("detail-sharing").hidden = !selectedCode;
+  $("detail-code").textContent = selectedCode || (scope.kind === "personal" ? (scope.is_owner ? "Your private memory" : "Private memory · policy only") : "Department workspace");
   $("copy-code").hidden = !selectedCode;
   $("project-detail").scrollIntoView({ block: "nearest" });
 }
@@ -186,6 +216,19 @@ function renderPeople() {
         }),
       );
       cell.append(button);
+    }
+    if (person.personal_scope_id) {
+      const policy = node("button", "Personal memory policy", "secondary");
+      policy.addEventListener("click", () => {
+        detail({scope_id: person.personal_scope_id, name: person.name + " · personal policy", kind: "personal",
+          can_manage: false, can_export: false, can_delete: false});
+        $("workspace-memories").hidden = true;
+        $("policy-person").value = person.principal_id;
+        perform(loadPolicy);
+        $("workspace-policy").open = true;
+        perform(() => switchView("projects"));
+      });
+      cell.append(policy);
     }
     row.append(cell);
     body.append(row);
@@ -255,7 +298,7 @@ async function renderReviews() {
     );
     if (item.findings?.length)
       card.append(node("p", "Screening findings: " + item.findings.join(", ")));
-    if (item.status === "pending" && item.proposer_id !== state.principal.id) {
+    if (item.status === "pending" && (item.proposer_id !== state.principal.id || state.scopes.find((s) => s.scope_id === scope)?.kind === "personal")) {
       [true, false].forEach((accept) => {
         const button = node(
           "button",
@@ -612,3 +655,114 @@ $("payment-portal").addEventListener("click", () =>
     ),
   ),
 );
+
+function downloadJSON(value, filename) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], {type: "application/json"}));
+  const link = node("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+$("export-memory").addEventListener("click", () => perform(async () => {
+  const result = await action("memory_export", {scope_id: selectedScope.scope_id});
+  downloadJSON(result, "distributedai-memories.json");
+  notice("Memories exported. The downloaded file contains readable content; store it securely.");
+}));
+$("backup-scope").addEventListener("click", () => perform(async () => {
+  downloadJSON(await action("scope_backup", {scope_id: selectedScope.scope_id}), "distributedai-workspace-backup.json");
+  notice("Workspace archive downloaded. Keep the organisation's key recovery material separately.");
+}));
+$("backup-organisation").addEventListener("click", () => perform(async () => {
+  downloadJSON(await action("organisation_backup"), "distributedai-organisation-backup.json");
+  notice("Organisation archive downloaded. Payloads remain encrypted; structural metadata is included.");
+}));
+$("delete-scope").addEventListener("click", () => perform(async () => {
+  if (!confirm("Permanently delete " + selectedScope.name + " and all its memories, history, messages and jobs? Child projects or departments will block deletion.")) return;
+  await action("scope_delete", {scope_id: selectedScope.scope_id, delete_contents: true});
+  $("project-detail").hidden = true;
+  await refresh();
+  notice("Workspace and its content deleted.");
+}));
+submit("move-form", async (form) => {
+  if (!confirm("Move this workspace? Inherited department access will change.")) return;
+  const id = selectedScope.scope_id;
+  await action("scope_move", {scope_id: id, parent_id: form.elements.parent_id.value});
+  await refresh();
+  detail(state.scopes.find((s) => s.scope_id === id) || {scope_id: id, name: "Workspace moved"});
+  notice("Workspace moved.");
+});
+submit("merge-form", async (form) => {
+  if (!confirm("Merge this department into the selected department? Inherited access will change.")) return;
+  await action("scope_merge", {source_id: selectedScope.scope_id, target_id: form.elements.target_id.value});
+  $("project-detail").hidden = true;
+  await refresh();
+  notice("Departments merged.");
+});
+submit("policy-form", async (form) => {
+  const id = selectedScope.scope_id;
+  await action("scope_policy_set", {scope_id: id, principal_id: form.elements.principal_id.value,
+    can_export: form.elements.can_export.value === "true", can_delete: form.elements.can_delete.value === "true"});
+  await refresh();
+  detail(state.scopes.find((s) => s.scope_id === id) || selectedScope);
+  notice("Export and delete permissions saved independently.");
+});
+submit("scoped-grant-form", async (form) => {
+  await action("grant", {scope_id: selectedScope.scope_id, principal_id: form.elements.principal_id.value, role: form.elements.role.value});
+  notice("Workspace access assigned.");
+});
+submit("memory-delete-form", async (form) => {
+  const key = form.elements.key.value;
+  if (!confirm("Permanently delete memory " + key + ", its proposals and history?")) return;
+  await action("memory_delete", {scope_id: selectedScope.scope_id, key});
+  form.reset();
+  notice("Memory and history deleted.");
+});
+
+submit("memory-search-form", async (form) => {
+  const result = await action("memory_search", {scope_id: selectedScope.scope_id, query: form.elements.query.value, limit: 20});
+  $("memory-results").replaceChildren();
+  result.records.forEach((record) => {
+    const card = node("article", undefined, "memory-card");
+    card.append(node("h3", record.key + " · v" + record.version), node("pre", record.content));
+    $("memory-results").append(card);
+  });
+  if (!result.records.length) $("memory-results").append(node("p", "No matching memories.", "empty"));
+  if (result.search_truncated) notice("Search reached its candidate limit. Narrow your query.");
+});
+submit("memory-propose-form", async (form) => {
+  const result = await action("memory_propose", {scope_id: selectedScope.scope_id, key: form.elements.key.value,
+    content: form.elements.content.value, expected_version: Number(form.elements.expected_version.value)});
+  if (selectedScope.kind === "personal" && !result.quarantined) {
+    await action("memory_review", {proposal_id: result.proposal_id, accept: true});
+    notice("Personal memory saved.");
+  } else {
+    notice(result.quarantined ? "Proposal quarantined by content screening." : "Proposal saved for independent review.");
+  }
+  form.reset();
+});
+
+submit("owner-form", async (form) => {
+  if (!confirm("Transfer workspace ownership? The new owner receives administrative access.")) return;
+  const id = selectedScope.scope_id;
+  await action("scope_owner_set", {scope_id: id, principal_id: form.elements.principal_id.value});
+  await refresh();
+  detail(state.scopes.find((s) => s.scope_id === id));
+  notice("Ownership transferred. Review any remaining direct and inherited assignments.");
+});
+
+async function loadPolicy() {
+  const scopeId = selectedScope.scope_id, principalId = $("policy-person").value;
+  if (!principalId) return;
+  const result = await action("scope_policy_get", {scope_id: scopeId, principal_id: principalId});
+  if (selectedScope?.scope_id !== scopeId || $("policy-person").value !== principalId) return;
+  const form = $("policy-form");
+  form.elements.can_export.value = String(result.can_export);
+  form.elements.can_delete.value = String(result.can_delete);
+  $("policy-effective").textContent = "Effective access for this user: export " +
+    (result.effective.can_export ? "allowed" : "unavailable") + ", delete " +
+    (result.effective.can_delete ? "allowed" : "unavailable") + ". Ownership and inherited restrictions still apply.";
+}
+$("policy-person").addEventListener("change", () => perform(loadPolicy));

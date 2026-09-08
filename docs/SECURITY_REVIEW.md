@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 # Web security review
 
 Review scope: source inspection of the working tree during the presentation/application/persistence separation. This is a bounded implementation review, not a penetration test, certification or proof of complete security. Existing regression tests below were inspected without duplicate execution by this reviewer. The coordinating run reports 225 Docker/PostgreSQL tests passed, including cross-instance logout replay tests; live split-deployment verification is a separate check. Changes made after that tested snapshot require the corresponding regression checks.
@@ -54,3 +55,7 @@ Use [OWASP ASVS 5.0.0](https://owasp.org/www-project-application-security-verifi
 | Logging, error handling and configuration | Metadata-only events, request IDs, generic outer error handling, trusted-proxy tests | External immutable retention, alerting, operational response and full cloud configuration assessment |
 
 No penetration-test completion, ASVS compliance or security certification is claimed.
+
+## Access lifecycle follow-up
+
+The expanded suite passed 253 Docker tests, including a PostgreSQL race between department deletion and project creation. New controls cover owner-private personal memory, independent export/delete policy, department administration, ownership transfer, inherited-policy preservation during moves/merges, explicit content purge and encrypted scoped archives. Export revocation is a feature permission, not protection against an authorised reader manually copying readable content. Scoped archives remain bounded and require external recovery material; see [access control](ACCESS_CONTROL.md) and [backup recovery](BACKUP_RECOVERY.md).

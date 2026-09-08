@@ -27,6 +27,8 @@ COOKIE = "da_management"
 STATIC = Path(__file__).resolve().parents[1] / "static"
 OPERATIONS = {
     "instance_create", "instance_list", "connection_issue", "connection_list", "connection_revoke", "billing_status",
+    "scope_policy_get", "personal_scope", "scope_move", "scope_merge", "scope_delete", "scope_owner_set", "scope_policy_set",
+    "memory_export", "memory_delete", "memory_propose", "scope_backup", "organisation_backup",
     "scope_create", "scope_list", "principal_create", "principal_list", "principal_revoke",
     "grant", "grant_list", "grant_revoke", "project_resolve", "memory_search", "memory_history",
     "memory_review", "proposal_list", "audit_list", "job_list", "job_review", "job_cancel",
@@ -139,7 +141,8 @@ def management_app(store, settings):
         principal = await identity(request)
         if principal is None:
             return JSONResponse({"error": "Sign in to continue"}, 401)
-        scopes = await asyncio.to_thread(store.dispatch, principal, "scope_list", {})
+        await asyncio.to_thread(store.dispatch, principal, "personal_scope", {})
+        scopes = await asyncio.to_thread(store.dispatch, principal, "scope_list", {"include_personal": True})
         return JSONResponse({"principal": {"id": principal.id, "name": principal.name,
                                            "org_id": principal.org_id,
                                            "is_org_admin": principal.is_org_admin}, **scopes})

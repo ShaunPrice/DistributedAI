@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Add after compose.yaml and compose.split.yaml. Application redundancy on one host.
+services:
+  api:
+    deploy:
+      replicas: 2
+  web:
+    volumes:
+      - ./deploy/Caddyfile.ha:/etc/caddy/Caddyfile:ro

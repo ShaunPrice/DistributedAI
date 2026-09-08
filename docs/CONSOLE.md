@@ -21,7 +21,7 @@ Create distinct identities, then assign a scope and role. Department and organis
 
 ## Memory reviews
 
-Select a workspace to inspect proposed context and its source. Pending proposals require an independent authorised reviewer. The screenshot shows the proposing administrator's view, so acceptance controls are absent.
+Select a workspace to inspect proposed context and its source. Shared-workspace proposals require an independent authorised reviewer. Personal owners may approve their own personal proposals, subject to screening. The screenshot shows the proposing administrator's view, so acceptance controls are absent.
 
 ![Two pending memory proposals with source information and demonstration research content](images/memory-reviews.png)
 
@@ -52,3 +52,13 @@ Use a credential issued by your administrator, or the organisation identity prov
 ## Screenshot maintenance
 
 Capture a fresh set after material interface changes. Use a separate local database with synthetic data, the browser's normal desktop viewport, and full-page captures where needed. Never capture one-time credential panels, populated key fields, payment details or personal records. Inspect every image before committing it, preserve descriptive alt text, and keep the experimental status visible. SVG site and navigation icons are served locally; the interface does not depend on an external font or icon service.
+
+## Personal memory and independent permissions
+
+Select **Personal memory** in Projects to view or propose private context. Its owner can export memories, subject to export permission, and delete content subject to separate delete permission. Organisation administrators use **People & access → Personal memory policy** to manage those controls without browsing the user’s content. The following additional screenshots were captured from an isolated fictional installation during the 8 September access update.
+
+![Personal memory owner viewing private context and memory controls](images/personal-memory.png)
+
+![Organisation administrator setting independent personal export and delete permissions without content access](images/personal-policy.png)
+
+Shared workspace details also include department moves, merges, ownership transfer and encrypted archives. See [access rules](ACCESS_CONTROL.md) and [backup and recovery](BACKUP_RECOVERY.md) for authority, deletion safeguards and archive limits.

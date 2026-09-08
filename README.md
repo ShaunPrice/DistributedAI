@@ -75,6 +75,9 @@ The offline database operator provisions additional organisations; tenant admini
 | [Operating costs](docs/COSTS.md) | Indicative assumptions and estimates, not measured unit costs |
 | [Import](docs/MIGRATION.md) | Scoped import from reviewed Cognitive-Memory exports |
 | [Validation](docs/VALIDATION.md) | Test evidence, known gaps and limitations |
+| [Access and ownership](docs/ACCESS_CONTROL.md) | Personal privacy, department administration, lifecycle and export/delete permissions |
+| [Backup and recovery](docs/BACKUP_RECOVERY.md) | Encrypted database backup, scoped archives and recovery requirements |
+| [High availability](docs/HIGH_AVAILABILITY.md) | Optional application replicas and managed database topology |
 | [Layer separation](docs/LAYERS.md) | Code boundaries and independent web, application and database containers |
 | [Security baseline](docs/SECURITY_REVIEW.md) | Implemented controls, regression evidence and deployment responsibilities |
 | [Security](SECURITY.md) | Reporting and repository scanning |
@@ -97,6 +100,12 @@ terraform -chdir=infra/aws validate
 The Docker test command includes real PostgreSQL concurrency tests in disposable schemas. Unit tests alone do not establish distributed correctness. Runtime dependencies are locked in `uv.lock`; production containers run without root privileges, Docker socket mounts or host workspace mounts.
 
 This repository contains new service code and synthetic tests. It does not contain an export of personal Cognitive-Memory records, credentials, client configurations or prior conversation history.
+
+## Personal memory and permissions
+
+Each identity has private memory alongside its assigned projects. Administrators manage independent export and delete permissions without reading another user’s personal content.
+
+![Personal memory policy administration](docs/images/personal-policy.png)
 
 ## Licensing
 

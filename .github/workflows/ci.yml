@@ -24,6 +24,7 @@ jobs:
       - run: docker compose -f compose.yaml -f compose.split.yaml up -d --build --wait web
       - run: docker compose -f compose.yaml -f compose.split.yaml --profile setup run --rm bootstrap
       - run: uv run python scripts/smoke.py
+      - run: uv run python scripts/smoke_ha.py
       - if: always()
         run: docker compose -f compose.yaml -f compose.split.yaml -f compose.test.yaml down --volumes
   terraform:

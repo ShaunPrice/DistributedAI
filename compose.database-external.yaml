@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Optional external managed PostgreSQL endpoint, including operator-configured database HA.
+services:
+  db:
+    profiles: [local-database]
+  init:
+    networks: [application]
+    depends_on: !reset {}
+    environment:
+      DATABASE_URL_FILE: /run/secrets/external_database_url
+    secrets: [external_database_url]
+  api:
+    networks: [application]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/external_database_url
+    secrets: [external_database_url]
+  bootstrap:
+    networks: [application]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/external_database_url
+    secrets: [external_database_url]
+secrets:
+  external_database_url:
+    file: ${DATABASE_URL_SECRET_FILE:?Set DATABASE_URL_SECRET_FILE to a protected PostgreSQL URL file}
+
+networks:
+  application: {}
