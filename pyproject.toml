@@ -6,7 +6,7 @@ license = "AGPL-3.0-only AND Apache-2.0"
 license-files = ["LICENSE", "LICENSE-APACHE-2.0", "LICENSES/*.txt"]
 requires-python = ">=3.12"
 dependencies = [
-  "mcp>=1.28,<2",
+  "mcp>=1.28,<3",
   "sqlalchemy>=2.0.43,<3",
   "psycopg[binary]>=3.2,<4",
   "uvicorn>=0.35,<1",
