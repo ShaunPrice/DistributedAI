@@ -7,7 +7,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           version: '0.8.22'
@@ -27,7 +27,7 @@ jobs:
         module: [infra/aws, infra/serverless/aws, infra/serverless/azure, infra/serverless/gcp]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
       - run: terraform fmt -check -recursive infra
       - run: terraform -chdir=${{ matrix.module }} init -backend=false
