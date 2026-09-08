@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """Authenticate at the transport; authorization remains in the store on every operation."""
 import asyncio
 import logging
@@ -11,8 +12,9 @@ log = logging.getLogger(__name__)
 
 
 class Verifier:
-    def __init__(self, store, settings: Settings):
-        self.store, self.settings = store, settings
+    def __init__(self, store, settings: Settings, *, purpose="mcp"):
+        self.store, self.settings, self.purpose = store, settings, purpose
+        self.metered = bool(getattr(getattr(store, "billing", None), "enabled", False))
         self.jwks = jwt.PyJWKClient(settings.jwks_url, timeout=5, lifespan=300) if settings.issuer else None
 
     async def verify_token(self, token: str) -> AccessToken | None:
@@ -34,13 +36,30 @@ class Verifier:
                 principal = await asyncio.to_thread(self.store.resolve_principal, principal_id)
                 if not principal:
                     return None
+                scopes = ["mcp"]
+                if self.purpose == "mcp" and self.metered:
+                    connection_id = self.settings.oidc_connections.get(subject)
+                    connection = await asyncio.to_thread(self.store.resolve_connection, connection_id) if connection_id else None
+                    if connection is None or connection.principal.id != principal.id:
+                        return None
+                    scopes.append("connection")
                 return AccessToken(
                     token=token, client_id=principal.id, subject=subject,
-                    scopes=["mcp"], expires_at=int(claims["exp"]),
+                    scopes=scopes, expires_at=int(claims["exp"]),
                     resource=self.settings.public_url,
                 )
             except (jwt.PyJWTError, ValueError, TypeError, KeyError):
                 return None
+        if self.purpose == "mcp":
+            connection = await asyncio.to_thread(self.store.authenticate_connection, token) if hasattr(self.store, "authenticate_connection") else None
+            if connection is not None:
+                principal = await asyncio.to_thread(self.store.resolve_principal, connection.principal.id)
+                if principal is None:
+                    return None
+                return AccessToken(token=token, client_id=principal.id, scopes=["mcp", "connection"],
+                                   resource=self.settings.public_url)
+            if self.metered:
+                return None  # Principal browser tokens cannot bypass metered client slots.
         principal = await asyncio.to_thread(self.store.authenticate, token)
         if principal is None:
             return None

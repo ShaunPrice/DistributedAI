@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Import explicitly exported, reviewed JSONL as proposals. Dry run unless --apply.
 
 Never connects to Cognitive-Memory or reads a database backup automatically.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """Operator commands. Database authority is deliberately separate from MCP tenant authority."""
 import argparse
 import json
@@ -14,6 +15,8 @@ def main():
     sub.add_parser("serve", help="Run authenticated MCP HTTP server")
     sub.add_parser("proxy", help="Adapt remote MCP to local stdio")
     sub.add_parser("init", help="Initialise database schema")
+    migration = sub.add_parser("encrypt-existing", help="Offline conversion of pre-encryption payloads")
+    migration.add_argument("--confirm-writers-stopped", action="store_true", required=True)
     boot = sub.add_parser("bootstrap", help="Provision initial organisation only on an empty database")
     boot.add_argument("--org", default="My Organisation")
     boot.add_argument("--principal", default="operator")
@@ -34,8 +37,19 @@ def main():
         return uvicorn.run("distributedai.server:create_app", factory=True,
                            host=os.getenv("BIND_HOST", "127.0.0.1"), port=8090,
                            access_log=False, proxy_headers=False)
-    from .store import Store
-    store = Store(Settings.from_env().database_url)
+    from .runtime import configured_store
+    store = configured_store(Settings.from_env())
+    if args.command == "encrypt-existing":
+        from .storage_encryption import migrate_existing
+        from sqlalchemy import text
+        store.initialize()
+        # Versioned additive schema upgrade for encrypted provenance strings.
+        with store._engine.begin() as conn:
+            if conn.dialect.name == "postgresql":
+                for table in ("memory_records", "memory_versions", "memory_proposals"):
+                    conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN source TYPE TEXT"))
+        print(json.dumps(migrate_existing(store, store.crypto)))
+        return
     if args.command == "init":
         store.initialize()
         return

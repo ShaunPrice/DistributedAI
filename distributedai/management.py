@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """Same-origin management console with encrypted, short-lived HttpOnly sessions.
 
 Session encryption keys are deployment secrets shared across API replicas. The original
@@ -8,20 +9,24 @@ import asyncio
 import json
 from pathlib import Path
 import secrets
+import time
 from urllib.parse import urlparse
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import InvalidToken
 from starlette.applications import Starlette
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
 
 from .auth import Verifier
+from .oidc import CloudLogin
+from .session_crypto import SessionCipher
 from .store import ServiceError
 
 TTL = 1800
 COOKIE = "da_management"
 STATIC = Path(__file__).parent / "static"
 OPERATIONS = {
+    "instance_create", "instance_list", "connection_issue", "connection_list", "connection_revoke", "billing_status",
     "scope_create", "scope_list", "principal_create", "principal_list", "principal_revoke",
     "grant", "grant_list", "grant_revoke", "project_resolve", "memory_search", "memory_history",
     "memory_review", "proposal_list", "audit_list", "job_list", "job_review", "job_cancel",
@@ -48,8 +53,9 @@ class BrowserHeaders:
 
 
 def management_app(store, settings):
-    cipher = Fernet(settings.management_key.encode())
-    verifier = Verifier(store, settings)
+    cipher = SessionCipher(settings.management_key.encode())
+    verifier = Verifier(store, settings, purpose="management")
+    cloud = CloudLogin(settings, cipher, store)
     url = urlparse(settings.public_url)
     origin = f"{url.scheme}://{url.netloc}"
 
@@ -58,8 +64,17 @@ def management_app(store, settings):
             encrypted = request.cookies.get(COOKIE, "")
             if len(encrypted) > 16384:
                 return None
-            token = cipher.decrypt(encrypted.encode(), ttl=TTL).decode()
-        except (InvalidToken, ValueError, UnicodeError):
+            session = json.loads(cipher.decrypt(encrypted.encode(), ttl=TTL))
+            if session["kind"] == "oidc":
+                if settings.login_mode == "token" or session["expires"] <= time.time() or session["issuer"] != settings.login_issuer:
+                    return None
+                if settings.login_subjects.get(session["sub"]) != session["principal_id"]:
+                    return None
+                return await asyncio.to_thread(store.resolve_principal, session["principal_id"])
+            if settings.login_mode == "oidc" or session["kind"] != "token":
+                return None
+            token = session["token"]
+        except (InvalidToken, ValueError, UnicodeError, KeyError, TypeError):
             return None
         access = await verifier.verify_token(token)
         return await asyncio.to_thread(store.resolve_principal, access.client_id) if access else None
@@ -76,7 +91,14 @@ def management_app(store, settings):
             return JSONResponse({"error": "Not found"}, 404)
         return FileResponse(STATIC / name)
 
+    async def login_options(request):
+        return JSONResponse({"token": settings.login_mode in {"token", "both"},
+                             "oidc": settings.login_mode in {"oidc", "both"},
+                             "provider": settings.login_provider})
+
     async def login(request):
+        if settings.login_mode == "oidc":
+            return JSONResponse({"error": "Use organisation sign-in"}, 403)
         if not csrf(request):
             return JSONResponse({"error": "Request origin rejected"}, 403)
         try:
@@ -90,7 +112,7 @@ def management_app(store, settings):
         if not access:
             return JSONResponse({"error": "Invalid or revoked access token"}, 401)
         response = JSONResponse({"authenticated": True})
-        response.set_cookie(COOKIE, cipher.encrypt(token.encode()).decode(), max_age=TTL,
+        response.set_cookie(COOKIE, cipher.encrypt(json.dumps({"kind": "token", "token": token}).encode()).decode(), max_age=TTL,
                             httponly=True, secure=url.scheme == "https", samesite="strict",
                             path="/manage")
         return response
@@ -138,6 +160,7 @@ def management_app(store, settings):
             return JSONResponse(result)
         except ServiceError as exc:
             status = {
+                "quota_exceeded": 429,
                 "invalid_argument": 400, "weak_token": 400, "unknown_operation": 400,
                 "conflict": 409, "invalid_state": 409, "already_bootstrapped": 409,
                 # Use the same outward status for inaccessible project codes as unknown codes.
@@ -147,8 +170,14 @@ def management_app(store, settings):
         except (json.JSONDecodeError, TypeError, ValueError):
             return JSONResponse({"error": "Invalid request"}, 400)
 
+    from .billing_http import billing_routes
+    billing_admin = billing_routes(store, settings, identity, csrf)
+    from .key_management import key_routes
+    key_admin = key_routes(store, settings, identity, csrf) if getattr(store, "crypto", None) else []
     return BrowserHeaders(Starlette(routes=[
         Route("/", page), Route("/assets/{name}", asset),
         Route("/login", login, methods=["POST"]), Route("/logout", logout, methods=["POST"]),
+        Route("/login-options", login_options),
+        Route("/oidc/start", cloud.start), Route("/oidc/callback", cloud.finish),
         Route("/state", state), Route("/api/{operation}", action, methods=["POST"]),
-    ]))
+    ] + key_admin + billing_admin))

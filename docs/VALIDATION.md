@@ -6,8 +6,8 @@ Validated on 2026-09-08. This is an initial implementation, not a security certi
 
 | Check | Result |
 |---|---|
-| Python unit/transport/management/import suite | 87 passed; 5 PostgreSQL tests skipped in the host-only run |
-| Complete Docker suite with PostgreSQL 17.6 | **92 passed**, including all 5 PostgreSQL tests |
+| Python unit/transport/management/import suite | 203 passed; 6 PostgreSQL tests skipped in the host-only run |
+| Complete Docker suite with PostgreSQL 17.6 | **209 passed**, including all 6 PostgreSQL tests |
 | PostgreSQL concurrent job claims across separate store instances | Exactly one winner; result submitted and reviewed through another instance |
 | Concurrent first/existing memory version reviews | One accepted proposal and one conflict; no lost update |
 | Concurrent accept/reject of the same proposal | One successful transition |
@@ -18,15 +18,24 @@ Validated on 2026-09-08. This is an initial implementation, not a security certi
 | Browser inspection | Successful sign-in, project creation/code display, people/access view, test identity revocation visible; no console errors observed |
 | Mobile layout | At 390px viewport, document and main element also measured 390px; no horizontal page overflow |
 | Container install | Fresh installation and subsequent installer run succeeded; API and database healthy; host API binds only 127.0.0.1 |
-| Terraform | `fmt` and `validate` passed; provider initialisation succeeded without cloud provisioning |
+| Terraform | AWS VM and AWS/Azure/GCP serverless modules passed `fmt` and `validate`; no cloud resources provisioned |
+| Encryption and identity | AES-256-GCM payload/session tampering, tenant isolation, key rotation, mock cloud providers, OIDC claims/PKCE and platform separation covered by automated tests |
+| Billing | Quotas, concurrent PostgreSQL reservations, connection revocation/downgrades, verified mock webhooks, checkout binding and metadata-only plan overrides covered |
+| Lambda bootstrap | 4 additional unit tests passed for the secret-loading adapter |
+| Dependency audit | 70 locked third-party Python versions inventoried; incomplete declarations and native/image review gaps documented |
+| Security tools | pip-audit found no known runtime dependency vulnerabilities; Bandit reported no medium/high findings (one low finding remains) |
 | Cloud installer dependency | Docker Compose v5.5.0 binary and checksum assets verified through Docker's GitHub release API |
 | Code hygiene | Ruff and Git whitespace checks passed; generated secret values absent from staged source |
 
-Idle sample on the development host: API approximately **71 MiB**, PostgreSQL approximately **37 MiB**. These are one idle measurement, not load-tested capacity estimates. The Docker-reported application image size was approximately 98 MB at that checkpoint.
+Earlier core-only idle sample on the development host (before the expanded encryption/billing build): API approximately **71 MiB**, PostgreSQL approximately **37 MiB**. These are one idle measurement, not load-tested capacity estimates. The Docker-reported application image size was approximately 98 MB at that checkpoint.
+
+The expanded browser checks also confirmed that the connections/plan and encryption-key screens render correctly and the separate platform login displays account metadata. No live payment checkout or cloud key operation was performed. The local encrypted installation passed the real HTTP/stdio smoke checks again after the upgrade.
 
 ## Independent work and review
 
 Claude implemented the persistence/security engine and core tests. Codex implemented the transport, management console, deployment, import adapter, integration tests and release packaging. Claude then reviewed the integrated code through a separate read-only session, with its review recorded in Cognitive-Memory communications.
+
+Claude also implemented the initial billing engine. Codex reviewed and integrated it, correcting downgrade enforcement, provider-qualified prices, event ordering, storage accounting and connection authentication. The reported test counts are actual Codex-run results, not delegated claims.
 
 Integration found and corrected PostgreSQL parent/audit insert ordering, enabled SQLite foreign-key enforcement, hardened first-version review and bootstrap concurrency, and made MCP output schemas explicit for structured client results. Claude's review prompted clearer management error statuses. Its concern that Compose v5.5.0 did not exist was disproved by checking the official release assets.
 
@@ -34,12 +43,14 @@ The existing Cognitive-Memory connection identified the worker as `unknown` desp
 
 ## Not yet validated or included
 
-- Actual AWS provisioning, DNS/certificate issuance and cloud restore/failover. Terraform was not applied.
+- Actual AWS/Azure/GCP provisioning, DNS/certificate issuance, cloud KMS permissions, confidential computing, restore/failover or measured per-user cost. Terraform was not applied.
+- Real Stripe/PayPal transactions, billing reconciliation under provider outages, or self-service user signup. PayPal hosted checkout/portal remains unsupported.
+- Cryptographic isolation from a malicious infrastructure operator in the default server-decryption mode. Client-side encryption/confidential computing are documented implementer options, not completed integrations. Structural metadata is not payload-encrypted; infrastructure encryption and access controls remain required.
 - A live external identity provider and complete OAuth consent flow in each hosted chatbot.
 - End-to-end operation inside every named product (ChatGPT, Hermes, OpenClaw, Perplexity, Claude desktop, etc.). SDK protocol tests do not certify product-specific clients.
 - Production load, denial-of-service resilience at scale, penetration testing or guaranteed injection detection.
 - Multi-host network faults, database failover, independent database federation or offline synchronisation. Race tests use distinct instances against one PostgreSQL server.
-- PostgreSQL row-level-security policies, managed identity lifecycle/SCIM, password signup, UI OIDC redirects, per-record retention/deletion policy, or automatic credential rotation.
+- PostgreSQL row-level-security policies, managed identity lifecycle/SCIM, password signup, per-record retention/deletion policy, or automatic credential rotation.
 - Automatic launch/scheduling of AI workers. Jobs/messages require a connected client to poll and act under its own authority.
 - Semantic embeddings and the full temporal/graph/consolidation feature set of Cognitive-Memory; import is explicitly scoped proposals from reviewed exports.
 

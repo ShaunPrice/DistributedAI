@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """DistributedAI shared memory and coordination store.
 
 Multi-tenant PostgreSQL-backed persistence core (SQLite permitted for unit tests). All service
@@ -192,7 +193,7 @@ class MemoryRecord(Base):
     content: Mapped[str] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, default=0)
     epistemic_kind: Mapped[str] = mapped_column(String(20))
-    source: Mapped[str] = mapped_column(String(MAX_SOURCE), default="")
+    source: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(32))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
@@ -210,7 +211,7 @@ class MemoryVersion(Base):
     version: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
     epistemic_kind: Mapped[str] = mapped_column(String(20))
-    source: Mapped[str] = mapped_column(String(MAX_SOURCE), default="")
+    source: Mapped[str] = mapped_column(Text, default="")
     proposal_id: Mapped[str] = mapped_column(String(32))
     created_by: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
@@ -225,7 +226,7 @@ class MemoryProposal(Base):
     content: Mapped[str] = mapped_column(Text)
     expected_version: Mapped[int] = mapped_column(Integer, default=0)
     epistemic_kind: Mapped[str] = mapped_column(String(20))
-    source: Mapped[str] = mapped_column(String(MAX_SOURCE), default="")
+    source: Mapped[str] = mapped_column(Text, default="")
     proposer_id: Mapped[str] = mapped_column(String(32), index=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     quarantined: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -359,6 +360,8 @@ _OPERATIONS = {
     "message_send", "message_inbox",
     "job_create", "job_list", "job_claim", "job_renew", "job_submit", "job_review",
     "job_cancel", "audit_list",
+    "instance_create", "instance_list", "connection_issue", "connection_revoke",
+    "connection_list", "billing_status",
 }
 
 
@@ -366,17 +369,23 @@ class Store:
     """Synchronous persistence and authorisation core. One instance per process is fine;
     every dispatch uses its own session/transaction."""
 
-    def __init__(self, database_url: str) -> None:
+    def __init__(self, database_url: str, *, billing_enabled: bool = False,
+                 plan_limits: dict | None = None) -> None:
         if not isinstance(database_url, str) or not database_url:
             raise ValueError("database_url must be a non-empty string")
         kwargs: dict[str, Any] = {}
         if database_url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
-        self._engine = create_engine(database_url, **kwargs)
+        self._engine = create_engine(database_url, hide_parameters=True, pool_pre_ping=True, **kwargs)
         if database_url.startswith("sqlite"):
             @event.listens_for(self._engine, "connect")
             def sqlite_foreign_keys(connection, record):
                 connection.execute("PRAGMA foreign_keys=ON")
+        # Deferred import: billing's registry tables extend this module's Base. Billing is
+        # per-instance state (no mutable globals); disabled means fully unmetered.
+        from . import billing as billing_module
+        self.billing = billing_module.BillingEngine(enabled=billing_enabled,
+                                                    plan_limits=plan_limits)
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -659,6 +668,7 @@ class Store:
         self._require_org_admin(dbp)
         name = _str_arg(args, "name")
         token = _validate_token(args.get("token"))
+        self.billing.check_user_quota(sess, dbp.org_id)  # no-op when billing is disabled
         row = PrincipalRow(id=_new_id(), org_id=dbp.org_id, name=name,
                            token_digest=_digest(token), is_org_admin=False)
         sess.add(row)
@@ -784,6 +794,7 @@ class Store:
         kind = _enum_arg(args, "epistemic_kind", EPISTEMIC_KINDS, default="observation")
         source = _str_arg(args, "source", default="", max_len=MAX_SOURCE, allow_empty=True)
         findings = security.scan_payload({"key": key, "content": content, "source": source})
+        self.billing.charge_storage(sess, dbp.org_id, sum(len(v.encode("utf-8")) for v in (content, source, json.dumps(findings))))
         proposal = MemoryProposal(
             id=_new_id(), org_id=dbp.org_id, scope_id=scope.id, key=key, content=content,
             expected_version=expected, epistemic_kind=kind, source=source,
@@ -875,6 +886,10 @@ class Store:
             return {"proposal_id": proposal.id, "status": "conflict",
                     "current_version": current_version,
                     "expected_version": proposal.expected_version}
+        # Charge the immutable version copy; on quota_exceeded the whole transaction rolls
+        # back, so the proposal stays pending and can be re-reviewed after an upgrade.
+        self.billing.charge_storage(sess, dbp.org_id,
+                                    len(proposal.content.encode("utf-8")) + len(proposal.source.encode("utf-8")))
         self._transition_proposal(sess, proposal, "accepted", dbp.id)
         new_version = current_version + 1
         if canonical is None:
@@ -915,13 +930,13 @@ class Store:
         stmt = select(MemoryRecord).where(MemoryRecord.org_id == dbp.org_id,
                                           MemoryRecord.scope_id.in_(readable),
                                           MemoryRecord.active.is_(True))
-        if query:
-            stmt = stmt.where(MemoryRecord.content.like(f"%{_escape_like(query)}%",
-                                                        escape="\\"))
-        rows = sess.execute(
-            stmt.order_by(MemoryRecord.updated_at.desc()).limit(limit)
+        # Encrypted content cannot be searched with a plaintext SQL index. Bound the
+        # authorised candidate scan and report truncation; never build a plaintext index.
+        candidates = sess.execute(
+            stmt.order_by(MemoryRecord.updated_at.desc(), MemoryRecord.id).limit(1001)
         ).scalars().all()
-        return {"records": [
+        rows = [row for row in candidates[:1000] if query.casefold() in row.content.casefold()][:limit]
+        return {"search_truncated": len(candidates) > 1000, "records": [
             {"scope_id": r.scope_id, "key": r.key, "content": r.content,
              "version": r.version, "epistemic_kind": r.epistemic_kind, "source": r.source,
              "created_by": r.created_by, "updated_at": _iso(r.updated_at),
@@ -983,6 +998,7 @@ class Store:
         if self._role_for(sess, recipient, scope) is None:
             raise ServiceError("denied", "recipient has no read access to this scope")
         findings = security.scan_text(body)
+        self.billing.charge_storage(sess, dbp.org_id, len(body.encode("utf-8")) + len(json.dumps(findings).encode("utf-8")))
         message = Message(id=_new_id(), org_id=dbp.org_id, scope_id=scope.id,
                           sender_id=dbp.id, recipient_id=recipient.id, body=body,
                           quarantined=bool(findings), findings=json.dumps(findings))
@@ -1064,6 +1080,7 @@ class Store:
             raise ServiceError("idempotency_conflict",
                                "idempotency key reused with a different payload")
         findings = security.scan_payload({"objective": objective, "idempotency_key": idem})
+        self.billing.charge_storage(sess, dbp.org_id, len(objective.encode("utf-8")) + len(json.dumps(findings).encode("utf-8")))
         job = Job(id=_new_id(), org_id=dbp.org_id, scope_id=scope.id, creator_id=dbp.id,
                   assignee_id=assignee.id, objective=objective, idempotency_key=idem,
                   status="quarantined" if findings else "queued",
@@ -1165,6 +1182,7 @@ class Store:
                                f"'result' exceeds {MAX_RESULT_JSON} JSON characters")
         job = self._job_fenced(sess, dbp, args)
         findings = security.scan_payload(args["result"])
+        self.billing.charge_storage(sess, dbp.org_id, len(result_json.encode("utf-8")) + max(0, len(json.dumps(findings).encode("utf-8")) - len(job.findings.encode("utf-8"))))
         job.result = result_json
         job.findings = json.dumps(findings)
         job.quarantined = bool(findings)
@@ -1237,3 +1255,60 @@ class Store:
              "scope_id": e.scope_id, "at": _iso(e.at)}
             for e in rows
         ]}
+
+    # -- billing / connections (logic lives in distributedai.billing) --------
+
+    def _op_instance_create(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        return self.billing.op_instance_create(sess, dbp, args)
+
+    def _op_instance_list(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        return self.billing.op_instance_list(sess, dbp, args)
+
+    def _op_connection_issue(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        return self.billing.op_connection_issue(sess, dbp, args)
+
+    def _op_connection_revoke(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        return self.billing.op_connection_revoke(sess, dbp, args)
+
+    def _op_connection_list(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        return self.billing.op_connection_list(sess, dbp, args)
+
+    def _op_billing_status(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        return self.billing.op_billing_status(sess, dbp, args)
+
+    def authenticate_connection(self, credential: str):
+        """Authenticate an individually issued connection credential (the MCP/HTTP transport
+        hook for AI-client traffic). Returns a billing.ConnectionAuth or None."""
+        with Session(self._engine) as sess:
+            return self.billing.authenticate_connection(sess, credential)
+
+    def resolve_connection(self, connection_id: str):
+        with Session(self._engine) as sess:
+            return self.billing.resolve_connection(sess, connection_id)
+
+    def billing_webhook(self, provider_name: str, headers: dict, body: bytes) -> dict:
+        """Verify and apply one payment-provider webhook (root wires the HTTP route).
+        Provider verification (which may call the provider's trusted API) happens before
+        the database transaction opens."""
+        provider = self.billing.provider(provider_name)
+        event_data = provider.verify_and_parse(headers, body)
+        with Session(self._engine) as sess, sess.begin():
+            return self.billing.process_event(sess, event_data)
+
+    def assign_plan(self, org_id: str, plan: str) -> dict:
+        """OFFLINE trusted billing authority only (operator CLI / platform billing service);
+        never reachable through dispatch or any tenant surface."""
+        with Session(self._engine) as sess, sess.begin():
+            return self.billing.assign_plan(sess, org_id, plan)
+
+    def register_billing_subscription(self, org_id: str, provider: str, customer_id: str,
+                                      subscription_id: str, plan: str | None = None) -> dict:
+        """OFFLINE/server-side binding of a provider subscription to an organisation."""
+        with Session(self._engine) as sess, sess.begin():
+            return self.billing.register_subscription(sess, org_id, provider,
+                                                      customer_id, subscription_id, plan)
+
+    def recalculate_storage(self, org_id: str) -> dict:
+        """Rebuild the org's storage counter from stored rows (offline reconciliation)."""
+        with Session(self._engine) as sess, sess.begin():
+            return self.billing.recompute_usage(sess, org_id)

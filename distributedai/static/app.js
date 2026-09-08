@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only
 "use strict";
 const $ = (id) => document.getElementById(id);
 let state = null,
@@ -39,6 +40,7 @@ function showLogin() {
   $("identity").textContent = "Not signed in";
   $("organisation-name").textContent = "Connect your organisation";
   $("issued-token").textContent = "";
+  $("manual-key").value = "";
   $("credential-panel").hidden = true;
   document.querySelectorAll("[data-admin]").forEach((el) => (el.hidden = true));
 }
@@ -281,7 +283,10 @@ async function renderAudit() {
 }
 async function switchView(name) {
   if (!state) return;
-  if ((name === "people" || name === "audit") && !state.principal.is_org_admin)
+  if (
+    ["people", "audit", "keys"].includes(name) &&
+    !state.principal.is_org_admin
+  )
     return;
   document
     .querySelectorAll(".view")
@@ -296,9 +301,13 @@ async function switchView(name) {
     people: "PEOPLE & ACCESS",
     reviews: "MEMORY REVIEWS",
     audit: "AUDIT TRAIL",
+    keys: "ENCRYPTION KEYS",
+    billing: "CONNECTIONS & PLAN",
   }[name];
   if (name === "reviews") await renderReviews();
   if (name === "audit") await renderAudit();
+  if (name === "keys") await renderKeys();
+  if (name === "billing") await renderBilling();
 }
 async function perform(fn) {
   try {
@@ -375,6 +384,7 @@ $("copy-code").addEventListener("click", () =>
 );
 $("dismiss-token").addEventListener("click", () => {
   $("issued-token").textContent = "";
+  $("manual-key").value = "";
   $("credential-panel").hidden = true;
 });
 $("logout").addEventListener("click", () =>
@@ -395,3 +405,183 @@ $("review-scope").addEventListener("change", () => perform(renderReviews));
 $("audit-scope").addEventListener("change", () => perform(renderAudit));
 showLogin();
 refresh().catch(() => {});
+
+request("login-options")
+  .then((options) => {
+    $("login-form").hidden = !options.token;
+    $("cloud-login").hidden = !options.oidc;
+    $("cloud-hint").hidden = !options.oidc;
+    $("cloud-login").textContent = "Sign in with " + options.provider;
+  })
+  .catch(() => notice("Sign-in configuration could not be loaded."));
+
+async function renderKeys() {
+  const keys = await request("keys");
+  $("key-status").textContent =
+    keys.algorithm + " · Active version " + keys.active_version;
+  options(
+    "key-provider",
+    keys.providers.map((name) => ({ name })),
+    "name",
+    (item) => item.name,
+  );
+  $("key-versions").replaceChildren(
+    ...keys.versions.map((version) =>
+      node("p", "Version " + version.version + " · " + version.provider),
+    ),
+  );
+}
+submit("key-form", async () => {
+  const input = $("manual-key");
+  const payload = { provider: $("key-provider").value };
+  if (input.value) payload.manual_key = input.value;
+  input.value = "";
+  try {
+    await request("keys/rotate", payload);
+  } finally {
+    delete payload.manual_key;
+  }
+  await renderKeys();
+  notice(
+    "Encryption key rotated. Previous key versions remain available for existing content.",
+  );
+});
+
+async function renderBilling() {
+  const [instances, connections] = await Promise.all([
+    action("instance_list"),
+    action("connection_list"),
+  ]);
+  options(
+    "connection-instance",
+    instances.instances.filter((item) => item.active),
+    "instance_id",
+    (item) => item.name,
+  );
+  options(
+    "connection-owner",
+    state.principal.is_org_admin
+      ? people.filter((item) => item.active)
+      : [{ principal_id: state.principal.id, name: state.principal.name }],
+    "principal_id",
+    (item) => item.name,
+  );
+  const list = $("connection-list");
+  list.replaceChildren();
+  connections.connections.forEach((connection) => {
+    const row = node("div", undefined, "form-panel");
+    row.append(
+      node("strong", connection.connection_id),
+      node(
+        "p",
+        "Instance " +
+          connection.instance_id +
+          " · " +
+          (connection.active ? "Active" : "Revoked"),
+      ),
+    );
+    if (connection.active) {
+      const revoke = node("button", "Revoke connection", "secondary");
+      revoke.addEventListener("click", () =>
+        perform(async () => {
+          await action("connection_revoke", {
+            connection_id: connection.connection_id,
+          });
+          await renderBilling();
+        }),
+      );
+      row.append(revoke);
+    }
+    list.append(row);
+  });
+  if (state.principal.is_org_admin) {
+    const billing = await action("billing_status");
+    const maximum = billing.limits.max_connections ?? "unlimited";
+    $("billing-summary").textContent = billing.billing_enabled
+      ? billing.plan +
+        " · " +
+        billing.usage.connections +
+        " / " +
+        maximum +
+        " connections · " +
+        (billing.usage.storage_bytes / 1048576).toFixed(2) +
+        " MiB stored"
+      : "Self-hosted · Billing disabled · Unmetered connections";
+    try {
+      const available = await request("billing/options");
+      const providers = Object.entries(available.providers || {}).map(
+        ([name, flags]) => ({ name, ...flags }),
+      );
+      paymentOptions = { ...available, providers };
+      options("payment-provider", providers, "name", (item) => item.name);
+      updatePaymentPlans();
+      $("payment-description").textContent = providers.length
+        ? "Checkout takes place with the payment provider. Project access remains separately assigned."
+        : "No payment provider is configured for this deployment.";
+      $("checkout-button").disabled = !providers.some((p) => p.checkout);
+      $("payment-portal").disabled = !providers.some((p) => p.portal);
+    } catch {
+      $("checkout-button").disabled = true;
+      $("payment-portal").disabled = true;
+    }
+  } else
+    $("billing-summary").textContent =
+      "Your connections use the projects assigned to you.";
+}
+let paymentOptions = { providers: [], prices: [] };
+function updatePaymentPlans() {
+  options(
+    "payment-plan",
+    (paymentOptions.prices || []).filter(
+      (item) => item.provider === $("payment-provider").value,
+    ),
+    "plan",
+    (item) => item.plan,
+  );
+  const selected = (paymentOptions.providers || []).find(
+    (item) => item.name === $("payment-provider").value,
+  );
+  $("checkout-button").disabled = !selected?.checkout;
+  $("payment-portal").disabled = !selected?.portal;
+}
+$("payment-provider").addEventListener("change", updatePaymentPlans);
+submit("instance-form", async (form) => {
+  await action("instance_create", Object.fromEntries(new FormData(form)));
+  form.reset();
+  await renderBilling();
+});
+submit("connection-form", async () => {
+  const result = await action("connection_issue", {
+    instance_id: $("connection-instance").value,
+    owner_principal_id: $("connection-owner").value,
+  });
+  $("issued-token").textContent = result.credential;
+  $("credential-panel").hidden = false;
+  await renderBilling();
+  notice(
+    "Connection credential issued. Copy it now; it cannot be retrieved later.",
+  );
+});
+function openPayment(result) {
+  const url = new URL(result.url);
+  if (url.protocol !== "https:")
+    throw new Error("Payment provider returned an invalid URL");
+  window.location.assign(url.href);
+}
+submit("payment-form", async () =>
+  openPayment(
+    await request("billing/checkout", {
+      provider: $("payment-provider").value,
+      plan: $("payment-plan").value,
+    }),
+  ),
+);
+$("payment-portal").addEventListener("click", () =>
+  perform(async () =>
+    openPayment(
+      await request("billing/portal", {
+        provider: $("payment-provider").value,
+      }),
+    ),
+  ),
+);

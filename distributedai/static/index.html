@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <!doctype html>
 <html lang="en">
   <head>
@@ -26,6 +27,12 @@
           People &amp; access
         </button>
         <button class="nav-item" data-view="reviews">Memory reviews</button>
+        <button class="nav-item" data-view="billing">
+          Connections &amp; plan
+        </button>
+        <button class="nav-item" data-view="keys" data-admin>
+          Encryption keys
+        </button>
         <button class="nav-item" data-view="audit" data-admin>
           Audit trail
         </button>
@@ -59,6 +66,12 @@
           Sign in to manage shared projects, connect your AI tools, and give
           each collaborator the access they need.
         </p>
+        <a id="cloud-login" class="primary" href="/manage/oidc/start" hidden
+          >Organisation sign-in</a
+        >
+        <p id="cloud-hint" hidden>
+          Use your organisation’s sign-in, including passkeys when enabled.
+        </p>
         <form id="login-form">
           <label for="access-token">Your access token</label>
           <input
@@ -79,6 +92,15 @@
         >
       </section>
       <div id="workspace" hidden>
+        <section id="credential-panel" class="credential-panel" hidden>
+          <h2>Save this new access token</h2>
+          <p>
+            Shown once. Send it to the intended person using your organisation's
+            secure channel.
+          </p>
+          <output id="issued-token"></output
+          ><button id="dismiss-token" class="secondary">I have saved it</button>
+        </section>
         <section id="projects-view" class="view">
           <div class="page-heading">
             <div>
@@ -204,17 +226,7 @@
               </form>
             </section>
           </div>
-          <section id="credential-panel" class="credential-panel" hidden>
-            <h2>Save this new access token</h2>
-            <p>
-              Shown once. Send it to the intended person using your
-              organisation's secure channel.
-            </p>
-            <output id="issued-token"></output
-            ><button id="dismiss-token" class="secondary">
-              I have saved it
-            </button>
-          </section>
+
           <h2>People and clients</h2>
           <div class="table-wrap">
             <table>
@@ -259,6 +271,90 @@
             >Workspace<select id="review-scope"></select
           ></label>
           <div id="review-list"></div>
+        </section>
+        <section id="billing-view" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">YOUR CONNECTED TOOLS</div>
+              <h1>Connections &amp; plan</h1>
+              <p>
+                Give each AI tool its own connection credential. Access follows
+                its assigned owner.
+              </p>
+            </div>
+          </div>
+          <div id="billing-summary" class="scope-strip"></div>
+          <div class="form-panel" data-admin>
+            <h2>Instances</h2>
+            <p>
+              An instance groups your connections. Each deployment keeps its
+              data in PostgreSQL.
+            </p>
+            <form id="instance-form" class="inline-form">
+              <label
+                >Name<input
+                  name="name"
+                  maxlength="200"
+                  required
+                  placeholder="e.g. Personal workspace" /></label
+              ><button>Create instance</button>
+            </form>
+          </div>
+          <form id="connection-form" class="form-panel form-grid">
+            <label
+              >Instance<select id="connection-instance" required></select
+            ></label>
+            <label>Owner<select id="connection-owner" required></select></label>
+            <button>Issue connection</button>
+          </form>
+          <div id="connection-list"></div>
+          <section class="form-panel" data-admin>
+            <h2>Subscription</h2>
+            <p id="payment-description">
+              Payments are optional and configured by the service operator.
+            </p>
+            <form id="payment-form" class="form-grid">
+              <label>Provider<select id="payment-provider"></select></label
+              ><label>Plan<select id="payment-plan"></select></label
+              ><button id="checkout-button">Continue to checkout</button>
+            </form>
+            <button id="payment-portal" class="secondary">
+              Manage subscription
+            </button>
+          </section>
+        </section>
+        <section id="keys-view" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">ORGANISATION SECURITY</div>
+              <h1>Encryption keys</h1>
+              <p>
+                Your content uses AES-256-GCM. Choose an approved key provider
+                or supply a new key.
+              </p>
+            </div>
+          </div>
+          <div id="key-status" class="scope-strip"></div>
+          <form id="key-form" class="form-panel">
+            <label
+              >Key provider<select id="key-provider" required></select
+            ></label>
+            <label
+              >Optional manual key<input
+                id="manual-key"
+                type="password"
+                autocomplete="off"
+                maxlength="128"
+                placeholder="Base64-encoded 32-byte key"
+            /></label>
+            <p>
+              Leave the key blank to generate it securely. Supplied keys are
+              never displayed again. Rotation keeps older content readable using
+              its earlier key version.
+            </p>
+            <button>Rotate encryption key</button>
+          </form>
+          <div id="key-versions"></div>
         </section>
         <section id="audit-view" class="view" hidden>
           <div class="page-heading">

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Portable Compose setup; requires Docker Engine/Desktop with Compose v2.
 
 Does not install a privileged Docker daemon, replace existing secrets, or expose ports publicly.
@@ -19,16 +20,26 @@ def main():
     root = Path(__file__).resolve().parents[1]
     folder = root / ".secrets"
     folder.mkdir(mode=0o700, exist_ok=True)
+    folder.chmod(0o700)
     values = {"db_password": secrets.token_urlsafe(48),
               "bootstrap_token": secrets.token_urlsafe(48), "oidc_subjects.json": "{}",
+              "content_master_key": base64.b64encode(secrets.token_bytes(32)).decode(),
+              "billing_plan_limits.json": "{}", "billing_prices.json": "{}", "payment_providers.json": "{}",
+              "oidc_connections.json": "{}", "key_providers.json": "{}", "tenant_key_providers.json": "{}",
+              "platform_admin_token": secrets.token_urlsafe(48), "platform_subjects.json": "[]",
+              "login_client_secret": "", "login_subjects.json": "{}",
               "management_key": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()}
     for name, value in values.items():
         try:
             fd = os.open(folder / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         except FileExistsError:
+            # Bind-mounted secrets need to be readable by the unprivileged container UID.
+            # Host traversal is restricted by the enclosing 0700 directory.
+            (folder / name).chmod(0o444)
             continue
         with os.fdopen(fd, "w") as output:
             output.write(value + "\n")
+        (folder / name).chmod(0o444)
     if args.generate_only:
         print("Secret files prepared; existing files preserved.")
         return

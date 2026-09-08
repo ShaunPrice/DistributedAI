@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Usage: docker compose -f compose.yaml -f compose.internet.yaml up -d
 services:
   api:

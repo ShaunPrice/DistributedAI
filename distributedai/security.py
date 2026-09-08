@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """Deterministic content-safety scanning for DistributedAI stored payloads.
 
 Bounded, deterministic, Unicode-normalised heuristics that flag text likely to be a prompt
@@ -38,7 +39,7 @@ ALL_FINDINGS = (
 )
 
 # Zero-width / joiner characters commonly used to break up trigger phrases.
-_ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍‎‏⁠﻿­"))
+_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u200e\u200f\u2060\ufeff\u00ad"))
 
 _PATTERNS: dict[str, list[re.Pattern[str]]] = {
     INSTRUCTION_OVERRIDE: [

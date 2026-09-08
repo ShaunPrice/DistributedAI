@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """Authenticated, stateless Streamable HTTP server using the official MCP SDK."""
 import asyncio
 from collections import OrderedDict
@@ -95,6 +96,11 @@ def create_server(store: Store, settings: Settings) -> FastMCP:
         access = get_access_token()
         if not access:
             raise ValueError("Authentication required")
+        access = await verifier.verify_token(access.token)
+        if access is None:
+            raise ValueError("Credential revoked or account unavailable")
+        if "connection" in access.scopes and operation in {"principal_create", "principal_revoke", "grant", "grant_revoke", "scope_create"}:
+            raise ValueError("Use the management console for access administration")
         # Revalidation here also fences tokens revoked after the HTTP middleware ran.
         principal = await asyncio.to_thread(store.resolve_principal, access.client_id)
         if principal is None:
@@ -239,12 +245,18 @@ def create_server(store: Store, settings: Settings) -> FastMCP:
 
 def create_app(settings: Settings | None = None):
     settings = settings or Settings.from_env()
-    store = Store(settings.database_url)
+    from .runtime import configured_store
+    store = configured_store(settings)
     app = create_server(store, settings).streamable_http_app()
+    from .billing_http import webhook_routes
+    app.routes.extend(webhook_routes(store))
     if settings.management_key:
         from starlette.routing import Mount
         from .management import management_app
         app.routes.append(Mount("/manage", app=management_app(store, settings)))
+        if settings.platform_admin_token or settings.platform_subjects:
+            from .platform import platform_app
+            app.routes.append(Mount("/platform", app=platform_app(store.platform, settings)))
     from urllib.parse import urlparse
     from starlette.middleware.trustedhost import TrustedHostMiddleware
     return Limits(TrustedHostMiddleware(app, allowed_hosts=[urlparse(settings.public_url).hostname,

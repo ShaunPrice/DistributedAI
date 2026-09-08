@@ -1,6 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
 """Stdio-to-HTTP MCP adapter for clients without remote MCP. Never logs credentials."""
 import asyncio
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 from mcp import ClientSession
@@ -8,7 +10,9 @@ from mcp.client.streamable_http import streamablehttp_client
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
-from .config import secret
+def secret(name):
+    path = os.getenv(name + "_FILE")
+    return Path(path).read_text().strip() if path else os.getenv(name, "")
 
 
 async def run_proxy():

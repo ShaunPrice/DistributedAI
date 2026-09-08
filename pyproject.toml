@@ -2,6 +2,8 @@
 name = "distributedai"
 version = "0.1.0"
 description = "Shared memory and coordination for distributed MCP clients"
+license = "AGPL-3.0-only AND Apache-2.0"
+license-files = ["LICENSE", "LICENSE-APACHE-2.0", "LICENSES/*.txt"]
 requires-python = ">=3.12"
 dependencies = [
   "mcp>=1.28,<2",
@@ -11,6 +13,11 @@ dependencies = [
   "httpx>=0.28,<1",
   "PyJWT[crypto]>=2.10,<3",
 ]
+
+[project.optional-dependencies]
+aws-kms = ["boto3>=1.40,<2"]
+azure-kms = ["azure-identity>=1.24,<2", "azure-keyvault-keys>=4.10,<5"]
+gcp-kms = ["google-cloud-kms>=3.5,<4"]
 
 [dependency-groups]
 dev = ["pytest>=8.4,<9", "pytest-asyncio>=1.1,<2", "ruff>=0.12,<1"]

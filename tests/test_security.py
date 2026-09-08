@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the deterministic content scanner (distributedai.security).
 
 All attack strings here are synthetic fixtures for testing the detector, not live payloads.

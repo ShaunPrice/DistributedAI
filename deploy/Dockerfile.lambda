@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# Build the repository's cloud-keys target first and pass its immutable reference here.
+ARG SERVICE_IMAGE=distributedai:cloud-keys
+FROM public.ecr.aws/awsguru/aws-lambda-adapter:1.0.1 AS adapter
+FROM ${SERVICE_IMAGE}
+COPY --from=adapter /lambda-adapter /opt/extensions/lambda-adapter
+COPY deploy/lambda_bootstrap.py /app/lambda_bootstrap.py
+ENV AWS_LWA_PORT=8090 AWS_LWA_READINESS_CHECK_PORT=8090 \
+    AWS_LWA_READINESS_CHECK_PATH=/healthz AWS_LWA_READINESS_CHECK_HEALTHY_STATUS=200 \
+    AWS_LWA_ASYNC_INIT=true AWS_LWA_INVOKE_MODE=buffered BIND_HOST=0.0.0.0
+ENTRYPOINT ["python", "/app/lambda_bootstrap.py"]
+CMD ["distributedai", "serve"]

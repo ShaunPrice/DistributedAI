@@ -1,0 +1,52 @@
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DistributedAI · Platform</title>
+    <link rel="stylesheet" href="/platform/assets/style.css" />
+    <script defer src="/platform/assets/platform.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">DistributedAI</p>
+        <h1>Platform administration</h1>
+        <p>
+          Account availability, plan limits and service metadata. Organisation
+          content and encryption keys are never shown here.
+        </p>
+      </header>
+      <section id="signin">
+        <h2>Platform sign-in</h2>
+        <p>
+          <a id="cloud-login" href="/platform/oidc/start" hidden
+            >Sign in with your identity provider</a
+          >
+        </p>
+        <form id="login">
+          <label for="credential">Platform credential</label
+          ><input
+            id="credential"
+            type="password"
+            autocomplete="current-password"
+            required
+            minlength="48"
+          /><button type="submit">Sign in</button>
+        </form>
+      </section>
+      <p id="notice" role="status" aria-live="polite"></p>
+      <section id="console" hidden>
+        <button id="refresh" type="button">Refresh</button>
+        <button id="logout" type="button">Sign out</button>
+        <h2>Accounts</h2>
+        <p>
+          Account identifiers, creation dates and aggregate counts only.
+          Suspension blocks tenant access; resuming does not change grants.
+        </p>
+        <div id="accounts"></div>
+      </section>
+    </main>
+  </body>
+</html>

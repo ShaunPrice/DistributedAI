@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Exercise real HTTP and stdio clients with synthetic data in a new test project.
 
 Creates one scoped test identity, revokes it in finally, and leaves auditable test records.

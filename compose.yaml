@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 name: distributedai
 
 x-app: &app
@@ -14,8 +15,24 @@ x-app: &app
     OIDC_ISSUER: ${OIDC_ISSUER:-}
     OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
     OIDC_SUBJECTS_FILE: /run/secrets/oidc_subjects
+    BILLING_ENABLED: ${BILLING_ENABLED:-false}
+    BILLING_PLAN_LIMITS_FILE: /run/secrets/billing_plan_limits
+    BILLING_PRICES_FILE: /run/secrets/billing_prices
+    PAYMENT_PROVIDERS_FILE: /run/secrets/payment_providers
+    OIDC_CONNECTIONS_FILE: /run/secrets/oidc_connections
+    CONTENT_MASTER_KEY_FILE: /run/secrets/content_master_key
+    KEY_PROVIDERS_FILE: /run/secrets/key_providers
+    TENANT_KEY_PROVIDERS_FILE: /run/secrets/tenant_key_providers
+    PLATFORM_SUBJECTS_FILE: /run/secrets/platform_subjects
+    PLATFORM_ADMIN_TOKEN_FILE: /run/secrets/platform_admin_token
+    LOGIN_MODE: ${LOGIN_MODE:-token}
+    LOGIN_PROVIDER: ${LOGIN_PROVIDER:-Organisation}
+    LOGIN_ISSUER: ${LOGIN_ISSUER:-}
+    LOGIN_CLIENT_ID: ${LOGIN_CLIENT_ID:-}
+    LOGIN_CLIENT_SECRET_FILE: /run/secrets/login_client_secret
+    LOGIN_SUBJECTS_FILE: /run/secrets/login_subjects
     MANAGEMENT_KEY_FILE: /run/secrets/management_key
-  secrets: [db_password, oidc_subjects, management_key]
+  secrets: [db_password, oidc_subjects, management_key, login_client_secret, login_subjects, content_master_key, key_providers, tenant_key_providers, platform_admin_token, platform_subjects, billing_plan_limits, billing_prices, payment_providers, oidc_connections]
   read_only: true
   tmpfs: [/tmp]
   cap_drop: [ALL]
@@ -58,7 +75,7 @@ services:
     environment:
       <<: *environment
       BOOTSTRAP_TOKEN_FILE: /run/secrets/bootstrap_token
-    secrets: [db_password, oidc_subjects, bootstrap_token, management_key]
+    secrets: [db_password, oidc_subjects, bootstrap_token, management_key, login_client_secret, login_subjects, content_master_key, key_providers, tenant_key_providers, platform_admin_token, platform_subjects, billing_plan_limits, billing_prices, payment_providers, oidc_connections]
     command: [distributedai, bootstrap]
     depends_on:
       init: {condition: service_completed_successfully}
@@ -67,6 +84,17 @@ secrets:
   db_password: {file: ./.secrets/db_password}
   bootstrap_token: {file: ./.secrets/bootstrap_token}
   oidc_subjects: {file: ./.secrets/oidc_subjects.json}
+  billing_plan_limits: {file: ./.secrets/billing_plan_limits.json}
+  billing_prices: {file: ./.secrets/billing_prices.json}
+  payment_providers: {file: ./.secrets/payment_providers.json}
+  oidc_connections: {file: ./.secrets/oidc_connections.json}
+  content_master_key: {file: ./.secrets/content_master_key}
+  key_providers: {file: ./.secrets/key_providers.json}
+  tenant_key_providers: {file: ./.secrets/tenant_key_providers.json}
+  platform_subjects: {file: ./.secrets/platform_subjects.json}
+  platform_admin_token: {file: ./.secrets/platform_admin_token}
+  login_client_secret: {file: ./.secrets/login_client_secret}
+  login_subjects: {file: ./.secrets/login_subjects.json}
   management_key: {file: ./.secrets/management_key}
 volumes:
   pgdata:

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Browser security and organisation/project access integration."""
 from cryptography.fernet import Fernet
 import httpx

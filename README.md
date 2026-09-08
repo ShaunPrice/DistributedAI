@@ -1,5 +1,9 @@
 # DistributedAI
 
+> **Experimental — not fully tested. This solution may contain security vulnerabilities.**
+> Automated tests and scans provide limited evidence, not a security assurance or production-readiness certification. Live cloud identity, payment-provider integration and deployment security require independent validation before use with sensitive data or production workloads.
+
+
 Shared memory and coordination for people and AI tools, with explicit organisation and project access.
 
 DistributedAI brings the proposal/review and leased-job patterns from Cognitive-Memory into an independent, portable service. Multiple Claude, ChatGPT, Codex, Hermes, OpenClaw, Perplexity, or other MCP clients can collaborate against one shared store. Each user or client instance has its own identity. A project code identifies the shared workspace; an administrator's access assignment authorises its use.
@@ -79,3 +83,20 @@ terraform -chdir=infra/aws validate
 The Docker test command includes real PostgreSQL concurrency tests in disposable schemas. Unit tests alone do not establish distributed correctness. Runtime dependencies are locked in `uv.lock`; production containers run without root privileges, Docker socket mounts or host workspace mounts.
 
 This repository contains new service code and synthetic tests. It does not contain an export of personal Cognitive-Memory records, credentials, client configurations or prior conversation history.
+
+Provider-hosted browser login and passkey configuration for AWS, Azure and GCP: [cloud identity guide](docs/IDENTITY.md).
+
+## Licensing
+
+The server under `distributedai/` (including its management UI) is licensed **AGPL-3.0-only**, except the standalone `distributedai/proxy.py` client adapter, which is **Apache-2.0**. The remaining original repository material—deployment templates, scripts, tests and documentation—is Apache-2.0. Third-party components retain their own licences. See [licensing boundaries](docs/LICENSING.md), [dependency audit](docs/DEPENDENCY_LICENSES.md), [server licence](LICENSE) and [Apache licence](LICENSE-APACHE-2.0).
+
+Hosted modified server deployments must provide their interacting users access to the corresponding source under AGPL. The repository is currently private; a public deployment must separately arrange source access or make the appropriate source public. Changing a future release's licence does not revoke earlier grants.
+
+## Deployment and account options
+
+- [AWS, Azure and GCP serverless containers](docs/SERVERLESS.md)
+- [Cloud identity and provider-managed passkeys](docs/IDENTITY.md)
+- [Content-blind central administration](docs/PLATFORM.md)
+- [AES-256-GCM content encryption and customer-managed keys](docs/ENCRYPTION.md)
+- [Optional paid accounts and connection quotas](docs/BILLING.md)
+- [Indicative running costs](docs/COSTS.md)

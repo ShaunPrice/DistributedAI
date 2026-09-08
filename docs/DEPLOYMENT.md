@@ -41,7 +41,7 @@ OIDC_JWKS_URL=https://identity.example.org/realms/example/protocol/openid-connec
 
 Put a JSON object mapping provider `sub` values to already-provisioned DistributedAI principal IDs in `.secrets/oidc_subjects.json`. The issuer is fixed by deployment configuration; claims cannot choose an organisation or roles. Tokens must have the exact MCP endpoint as their audience, valid `iss`, `sub`, `exp`, `iat`, and an RS256/ES256 signature. Configure provider discovery, client registration, PKCE and redirects for the actual client product. No real provider has been provisioned by this repository's tests. Synthetic signed-token tests cover the resource-server checks.
 
-An opaque bearer deployment does not provide an interactive OAuth consent flow. The management console's initial sign-in accepts issued access tokens; password accounts, self-service signup, SCIM and a browser OIDC redirect flow are not implemented. Use your organisation's secure credential distribution process. Sessions last 30 minutes and require the underlying identity to remain active.
+The browser console optionally supports provider-hosted OIDC login with passkeys configured at AWS Cognito, Microsoft Entra or Google. See [identity configuration](IDENTITY.md). Password accounts, automatic signup and SCIM are not implemented. Sessions last at most 30 minutes and require the underlying identity to remain active.
 
 ## AWS Terraform
 

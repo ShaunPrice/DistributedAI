@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Real PostgreSQL races and persistence; opt-in, isolated schema per test, no production writes.
 
 Run using the test image on the Compose network with RUN_POSTGRES_TESTS=1.

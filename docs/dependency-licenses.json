@@ -1,0 +1,1448 @@
+{
+  "schema": "distributedai-license-inventory/v1",
+  "generated_at": "2026-09-08T05:14:39.614681+00:00",
+  "lock_sha256": "cdd50e0b0d6371e881f95fcc57ce80db4be76e8947fedd4bdb8780f627d4eaed",
+  "scope": "All registry packages in uv.lock, including optional SDKs, development dependencies and platform variants; excludes native bundled libraries and container OS",
+  "package_count": 70,
+  "metadata_failure_count": 0,
+  "manual_review_count": 8,
+  "packages": [
+    {
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "source": "https://pypi.org/pypi/annotated-types/0.8.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "a6e8e5b10c8fd2f596bba53e015cd37f6279fb5cec26ce0c5e9968625be4fefa",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "anyio",
+      "version": "4.15.1",
+      "source": "https://pypi.org/pypi/anyio/4.15.1/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "e2ee22fad2fab3e66be503cba9b41945607d3076c9b7aa49b6e2f95ac323efab",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0",
+      "source": "https://pypi.org/pypi/attrs/26.1.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "a882bf941fb4a0bb748d0194df544121cc130f5fb15a710ab6b804c17d2899b7",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "azure-core",
+      "version": "1.41.0",
+      "source": "https://pypi.org/pypi/azure-core/1.41.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "677e897fe754d9e8b13986d64a55115b9a70503e614ea4a92c4aaacc7081b33e",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/5b/db/325c6d7312d2200251c52323878281045aaffcb5586612296484e4280eaa/azure_core-1.41.0-py3-none-any.whl",
+        "sha256": "522b4011e8180b1a3dcd2024396a4e7fe9ac37fb8597db47163d230b5efe892d",
+        "license_files": [
+          {
+            "path": "azure_core-1.41.0.dist-info/licenses/LICENSE",
+            "sha256": "7c77a44a8acd9b41fdc209864a8016b3d430b5d0e09309818d5b7444336df744",
+            "excerpt": "Copyright (c) Microsoft Corporation.\n\nMIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish,"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "optional:azure-kms"
+      ]
+    },
+    {
+      "name": "azure-identity",
+      "version": "1.25.3",
+      "source": "https://pypi.org/pypi/azure-identity/1.25.3/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "c8f26e6e2744ed60eafd41b9b7401bd85066a03f09861220cd1964af1b6e93a1",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/49/9a/417b3a533e01953a7c618884df2cb05a71e7b68bdbce4fbdb62349d2a2e8/azure_identity-1.25.3-py3-none-any.whl",
+        "sha256": "f4d0b956a8146f30333e071374171f3cfa7bdb8073adb8c3814b65567aa7447c",
+        "license_files": [
+          {
+            "path": "azure_identity-1.25.3.dist-info/licenses/LICENSE",
+            "sha256": "7c77a44a8acd9b41fdc209864a8016b3d430b5d0e09309818d5b7444336df744",
+            "excerpt": "Copyright (c) Microsoft Corporation.\n\nMIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish,"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "optional:azure-kms"
+      ]
+    },
+    {
+      "name": "azure-keyvault-keys",
+      "version": "4.11.2",
+      "source": "https://pypi.org/pypi/azure-keyvault-keys/4.11.2/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "ebaf5f9052ae8dcb43cd31ea3ee7c231010f4bf31e33ee46bc92ca842e891b6b",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms"
+      ]
+    },
+    {
+      "name": "boto3",
+      "version": "1.43.89",
+      "source": "https://pypi.org/pypi/boto3/1.43.89/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache-2.0",
+      "legacy_license_sha256": "2af71558e438db0b73a20beab92dc278a94e1bbe974c00c1a33e3ab62d53a608",
+      "license_classifiers": [],
+      "metadata_sha256": "59a1469f482f0eadc9514785b38b1cdaa7c5ac0c80c076e2d782c217eb7d4ee4",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:aws-kms"
+      ]
+    },
+    {
+      "name": "botocore",
+      "version": "1.43.89",
+      "source": "https://pypi.org/pypi/botocore/1.43.89/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache-2.0",
+      "legacy_license_sha256": "2af71558e438db0b73a20beab92dc278a94e1bbe974c00c1a33e3ab62d53a608",
+      "license_classifiers": [],
+      "metadata_sha256": "8da259c7b8c757fe705f452b5e453ab84cc7f74b3049d0c972a1d90699270282",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:aws-kms"
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "source": "https://pypi.org/pypi/certifi/2026.7.22/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MPL-2.0",
+      "legacy_license_excerpt": "MPL-2.0",
+      "legacy_license_sha256": "09962c1dc23fac80a0e5a88b2eb7051b74a6443a568ca2a045a4ec2fb82aeee5",
+      "license_classifiers": [
+        "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)"
+      ],
+      "metadata_sha256": "c6fe912677e373608eab51e324946005998faeb0fa999e6ddada24676e3556d3",
+      "manual_review": false,
+      "declared_license": "MPL-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "optional:gcp-kms",
+        "runtime"
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1",
+      "source": "https://pypi.org/pypi/cffi/2.1.1/json",
+      "license_expression": "MIT-0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "2255e530e3f80593a354e3d84a29966924d0e10309d1e3a6d50f845ab7d8df66",
+      "manual_review": false,
+      "declared_license": "MIT-0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "optional:gcp-kms",
+        "runtime"
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1",
+      "source": "https://pypi.org/pypi/charset-normalizer/3.5.1/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [],
+      "metadata_sha256": "325955203764ef6e7ec5d01b69f776a5c7c2c96ca304e1e160109ea4b98fe850",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "click",
+      "version": "8.5.0",
+      "source": "https://pypi.org/pypi/click/8.5.0/json",
+      "license_expression": "BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "4e36adc9b46f837e10ce801b7a478f9146fefdfb287292b7668fc64b1474e41d",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "source": "https://pypi.org/pypi/colorama/0.4.6/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "metadata_sha256": "43fb351344384a44c2b7d7fff1c63496b89ac830aea714301525c1f3718addd1",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+        "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+        "license_files": [
+          {
+            "path": "colorama-0.4.6.dist-info/licenses/LICENSE.txt",
+            "sha256": "cac35c02686e5d04a5a7140bfb3b36e73aed496656e891102e428886d7930318",
+            "excerpt": "Copyright (c) 2010 Jonathan Hartley\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redistributions of source code must retain the above copyright notice, this\n  list of conditions and the following d"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "50.0.1",
+      "source": "https://pypi.org/pypi/cryptography/50.0.1/json",
+      "license_expression": "Apache-2.0 OR BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "02bbd8a2728dac94f7d6a4a3d5de523afdadc90ca5b1476845ad3f505861ea63",
+      "manual_review": false,
+      "declared_license": "Apache-2.0 OR BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "optional:gcp-kms",
+        "runtime"
+      ]
+    },
+    {
+      "name": "google-api-core",
+      "version": "2.36.0",
+      "source": "https://pypi.org/pypi/google-api-core/2.36.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache 2.0",
+      "legacy_license_sha256": "cf989ea142f203f532233fa944ee1d8d5acfe6f6875e4d611f515ee108ba26df",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "65cf8a2707348d152e5bd7d64a530e0b42de0f774555400148b628c878ab7866",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "google-auth",
+      "version": "2.57.1",
+      "source": "https://pypi.org/pypi/google-auth/2.57.1/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache 2.0",
+      "legacy_license_sha256": "cf989ea142f203f532233fa944ee1d8d5acfe6f6875e4d611f515ee108ba26df",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "8c6140465b72e3a6d69bc4ffbb53012b5022a5563128740623af59ad30e43513",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "google-cloud-kms",
+      "version": "3.16.0",
+      "source": "https://pypi.org/pypi/google-cloud-kms/3.16.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache-2.0",
+      "legacy_license_sha256": "2af71558e438db0b73a20beab92dc278a94e1bbe974c00c1a33e3ab62d53a608",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "b67f15bcc63752ffbdecb34d4f4acb18bc14403750bdf922e2bcf40fb1b4378e",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "googleapis-common-protos",
+      "version": "1.75.3",
+      "source": "https://pypi.org/pypi/googleapis-common-protos/1.75.3/json",
+      "license_expression": "Apache-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "e6a54cdb74998b8a6d8b8ed2d00dcf47e7580f51c8e274b4a02e2bcb62cd905c",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "greenlet",
+      "version": "3.5.5",
+      "source": "https://pypi.org/pypi/greenlet/3.5.5/json",
+      "license_expression": "MIT AND PSF-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "831497c6c281b59ef7857a79652556220e85aa8e942445123f1bd847c087f42f",
+      "manual_review": false,
+      "declared_license": "MIT AND PSF-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "grpc-google-iam-v1",
+      "version": "0.14.5",
+      "source": "https://pypi.org/pypi/grpc-google-iam-v1/0.14.5/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache 2.0",
+      "legacy_license_sha256": "cf989ea142f203f532233fa944ee1d8d5acfe6f6875e4d611f515ee108ba26df",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "06a917e19b5343d1129133df2dad486e88030aa6d662915442fc3cf61237423c",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "grpcio",
+      "version": "1.83.1",
+      "source": "https://pypi.org/pypi/grpcio/1.83.1/json",
+      "license_expression": "Apache-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "a5c14b4dca377b61feaf998035ffb37a7d5931521c1b87ac160ec1a1a663afe7",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "grpcio-status",
+      "version": "1.83.1",
+      "source": "https://pypi.org/pypi/grpcio-status/1.83.1/json",
+      "license_expression": "Apache-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "3fbf105f26cccbb42641e7a018c42ac1683388c16b56b0deead19cfe87c28597",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "source": "https://pypi.org/pypi/h11/0.16.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "97f4efb9cc00826f0408076983adc1a1e48e8f2cabf403aaf250f724e081440d",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "source": "https://pypi.org/pypi/httpcore/1.0.9/json",
+      "license_expression": "BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "metadata_sha256": "e26eca5c3d288fe9e6446af9bcbca1038ba688629d5c8a2886c47d74718d87a2",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "source": "https://pypi.org/pypi/httpx/0.28.1/json",
+      "license_expression": null,
+      "normalized_legacy_license": "BSD-3-Clause",
+      "legacy_license_excerpt": "BSD-3-Clause",
+      "legacy_license_sha256": "118dbcd2d5c9f9b296a9ede9fcc469c5840f7b98ad2c88461055bf2ceda38037",
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "metadata_sha256": "293bfab7bf587fcd0825f1bd8eed8e6303285ba14801b15659853827cbe30796",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "httpx-sse",
+      "version": "0.4.3",
+      "source": "https://pypi.org/pypi/httpx-sse/0.4.3/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [],
+      "metadata_sha256": "10290174877d76e44ac10aaa9ee06a591b140b99943bfde6c9ccf031527f1f59",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.19",
+      "source": "https://pypi.org/pypi/idna/3.19/json",
+      "license_expression": "BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "22a9f01b4f3819da346f98e5d488fb18ea10cb98a2753a425d07692b9691304d",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "optional:gcp-kms",
+        "runtime"
+      ]
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "source": "https://pypi.org/pypi/iniconfig/2.3.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "38c06d73779f13d8e4b48d48b3c524ff23e59d7be4bdb44cb6d90b3c5eb20182",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "isodate",
+      "version": "0.7.2",
+      "source": "https://pypi.org/pypi/isodate/0.7.2/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": "Copyright (c) 2021, Hugo van Kemenade and contributors Copyright (c) 2009-2018, Gerhard Weis and contributors Copyright (c) 2009, Gerhard Weis All rights reserved.  Redistribution and use in source and binary forms, with or without modifica",
+      "legacy_license_sha256": "319706937ce74a8142804f4efebb7044ea4a7c5eef7faf7e1ffa63a7587ac386",
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "metadata_sha256": "fd12a88dad35ade2d98bfa2ee0f35a7f3306a915e394fee44329bc4fc88116b3",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/15/aa/0aca39a37d3c7eb941ba736ede56d689e7be91cab5d9ca846bde3999eba6/isodate-0.7.2-py3-none-any.whl",
+        "sha256": "28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15",
+        "license_files": [
+          {
+            "path": "isodate-0.7.2.dist-info/LICENSE",
+            "sha256": "ce5fe4893fb6ab843de77b367bfa9db974d7b00ab9033fcca8d7760a97fe1b43",
+            "excerpt": "Copyright (c) 2021, Hugo van Kemenade and contributors\nCopyright (c) 2009-2018, Gerhard Weis and contributors\nCopyright (c) 2009, Gerhard Weis\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n    * Redist"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "optional:azure-kms"
+      ]
+    },
+    {
+      "name": "jmespath",
+      "version": "1.1.0",
+      "source": "https://pypi.org/pypi/jmespath/1.1.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "de5bfed61841dea8dd10c05206276a42f526f10cd96a57717e24fa8d94f98111",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:aws-kms"
+      ]
+    },
+    {
+      "name": "jsonschema",
+      "version": "4.26.0",
+      "source": "https://pypi.org/pypi/jsonschema/4.26.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "d0c9ccdfa30c3cdc57b048c2be21123dfb0c2f4d6bef2e8324dcb4eac985cfcf",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "source": "https://pypi.org/pypi/jsonschema-specifications/2025.9.1/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "91810d8f79384375ad0c0cf631e06903e2790b030d3fad2f1ad657b20ddd839e",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "mcp",
+      "version": "1.30.0",
+      "source": "https://pypi.org/pypi/mcp/1.30.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "8e28f834453fb81be7eb54693f27dfb5615cbfc857fb0dd897ff428bfd5085cd",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "msal",
+      "version": "1.38.0",
+      "source": "https://pypi.org/pypi/msal/1.38.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "8a73c2afb4031046d21a824d15f1b45d0b02a81d2459d627a9118d724cf03f47",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms"
+      ]
+    },
+    {
+      "name": "msal-extensions",
+      "version": "1.3.1",
+      "source": "https://pypi.org/pypi/msal-extensions/1.3.1/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT License",
+      "legacy_license_sha256": "abb2896dc3c2a9402f901b88d5035cf0a83d5cf7c17e73642cdf562b0b9d3bc5",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "e41bbbd91e185484780d3e809c20c2c888ce154c2c7dd475231fa1973ca3ae57",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms"
+      ]
+    },
+    {
+      "name": "opentelemetry-api",
+      "version": "1.44.0",
+      "source": "https://pypi.org/pypi/opentelemetry-api/1.44.0/json",
+      "license_expression": "Apache-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "08536503d799dbd354e0960c25fd08b1a11dadb4e3185d363e0adcd44045f5e0",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "source": "https://pypi.org/pypi/packaging/26.3/json",
+      "license_expression": "Apache-2.0 OR BSD-2-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "4f190d2f0b312b3086058cee64ab4333bf3ce67fb78b4c2bdb43899049b29f4d",
+      "manual_review": false,
+      "declared_license": "Apache-2.0 OR BSD-2-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "pluggy",
+      "version": "1.6.0",
+      "source": "https://pypi.org/pypi/pluggy/1.6.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "db23d1227f5870da7538b1e29371d9fc9a93b0499989f8e3ef021fdccd75bc8e",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "proto-plus",
+      "version": "1.28.4",
+      "source": "https://pypi.org/pypi/proto-plus/1.28.4/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache 2.0",
+      "legacy_license_sha256": "cf989ea142f203f532233fa944ee1d8d5acfe6f6875e4d611f515ee108ba26df",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "7c29a232e9effd49969dff98123691004e76b47bd97f6a76035a02f491b4e99b",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "protobuf",
+      "version": "7.36.1",
+      "source": "https://pypi.org/pypi/protobuf/7.36.1/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": "3-Clause BSD License",
+      "legacy_license_sha256": "15934bcfcb57d72b1b73d913180ce7f86d2773c32725efa41ddb6b14e143cb84",
+      "license_classifiers": [],
+      "metadata_sha256": "358d8d755c68a0ee4a5e18dd96c0817a32f26484acdc5aa1c2edeb522e569d53",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/39/ca/c47f91d3cab175b01fd8c4f0d80fdf8613be876cc616e66ad281a59c5ddf/protobuf-7.36.1-py3-none-any.whl",
+        "sha256": "7d951e46b3f963d6c264c367c437921de9d5aedd9c3f9612b9077736b4e3ad5c",
+        "license_files": [
+          {
+            "path": "protobuf-7.36.1.dist-info/LICENSE",
+            "sha256": "6e5e117324afd944dcf67f36cf329843bc1a92229a8cd9bb573d7a83130fea7d",
+            "excerpt": "Copyright 2008 Google Inc.  All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are\nmet:\n\n    * Redistributions of source code must retain the above copyright\nnotice, this list of conditions and the following disclai"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "psycopg",
+      "version": "3.3.5",
+      "source": "https://pypi.org/pypi/psycopg/3.3.5/json",
+      "license_expression": "LGPL-3.0-only",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "f34fd11e70a02487a6f8504794f7784900548e8890727827b549f89c1fb17433",
+      "manual_review": false,
+      "declared_license": "LGPL-3.0-only",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "psycopg-binary",
+      "version": "3.3.5",
+      "source": "https://pypi.org/pypi/psycopg-binary/3.3.5/json",
+      "license_expression": "LGPL-3.0-only",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "5c8c98df1d44fb882cd17a5f4d4a86a6439ab02c060ec5e5a99b939c238b6756",
+      "manual_review": false,
+      "declared_license": "LGPL-3.0-only",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.4",
+      "source": "https://pypi.org/pypi/pyasn1/0.6.4/json",
+      "license_expression": null,
+      "normalized_legacy_license": "BSD-2-Clause",
+      "legacy_license_excerpt": "BSD-2-Clause",
+      "legacy_license_sha256": "248dd895a2f89e28813b4c8c0a7d21806a35699102e4f6e32f47784b82730428",
+      "license_classifiers": [],
+      "metadata_sha256": "cce3a342bc3f2027bcf079357de8886d17f1c058c5233b3f348b749a9ed2c38b",
+      "manual_review": false,
+      "declared_license": "BSD-2-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "pyasn1-modules",
+      "version": "0.4.2",
+      "source": "https://pypi.org/pypi/pyasn1-modules/0.4.2/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": "BSD",
+      "legacy_license_sha256": "49d9777da612e1f4e9269fa9f93ea324a66f9dcc7722ad812de124ef3f266d93",
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "metadata_sha256": "5176a4663fb2345b3a0cd53e6d72d541fab642ed1ad815b1224c124f8287cc8e",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/47/8d/d529b5d697919ba8c11ad626e835d4039be708a35b0d22de83a269a6682c/pyasn1_modules-0.4.2-py3-none-any.whl",
+        "sha256": "29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a",
+        "license_files": [
+          {
+            "path": "pyasn1_modules-0.4.2.dist-info/licenses/LICENSE.txt",
+            "sha256": "2aad5fc00f705c4a1addb83eed10a6a75d286a3779f0cf8519d87e62bc4735fd",
+            "excerpt": "Copyright (c) 2005-2020, Ilya Etingof <etingof@gmail.com>\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n  * Redistributions of source code must retain the above copyright notice, \n    this list of con"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "source": "https://pypi.org/pypi/pycparser/3.0/json",
+      "license_expression": "BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "116983f7de9bda289946d08200ba1bd7b832547f151165c12bd87d6b8e59b015",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "optional:gcp-kms",
+        "runtime"
+      ]
+    },
+    {
+      "name": "pydantic",
+      "version": "2.13.5",
+      "source": "https://pypi.org/pypi/pydantic/2.13.5/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "63325e1fa102ac9784efd6e74af5e38d516d9b7da3672ff442c03f1f4eea15b4",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "pydantic-core",
+      "version": "2.46.5",
+      "source": "https://pypi.org/pypi/pydantic-core/2.46.5/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "8913cf70854e0dec9fbaee3ac3ed0420d27e674f56714b2d9aeff44fec1d82c3",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "pydantic-settings",
+      "version": "2.15.0",
+      "source": "https://pypi.org/pypi/pydantic-settings/2.15.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "646b7fd5cf2763825e26b0fbb35835d33c4218cedb611efb9106f06109960608",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "pygments",
+      "version": "2.21.0",
+      "source": "https://pypi.org/pypi/pygments/2.21.0/json",
+      "license_expression": "BSD-2-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "330104a10adc8a587e3f98f4e207557125ca0c1d489e129334da5acb2b813a03",
+      "manual_review": false,
+      "declared_license": "BSD-2-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "pyjwt",
+      "version": "2.13.0",
+      "source": "https://pypi.org/pypi/pyjwt/2.13.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "5e44ab4cfcfa8cdebe044915b2ed9aaa1de13e265368599e77b529d87557050a",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "runtime"
+      ]
+    },
+    {
+      "name": "pytest",
+      "version": "8.4.2",
+      "source": "https://pypi.org/pypi/pytest/8.4.2/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "5f5ffcd853116099c2a5157a5eee4d4897397a4ab6127039867b27dab47675a2",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "pytest-asyncio",
+      "version": "1.4.0",
+      "source": "https://pypi.org/pypi/pytest-asyncio/1.4.0/json",
+      "license_expression": "Apache-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "7d73d89418af6bc6b73a93948bc304486249893ec37cd973c25dd3ff8038c08f",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "source": "https://pypi.org/pypi/python-dateutil/2.9.0.post0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": "Dual License",
+      "legacy_license_sha256": "199628ddb098f90709bb2dc43f816a5a40fe31690de0e25d0f4d6455fe6bc609",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License",
+        "License :: OSI Approved :: BSD License"
+      ],
+      "metadata_sha256": "65747bc111eb972ae6f477f211253f21e25738cb7d894ddb80ddd65f620b58a7",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+        "sha256": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+        "license_files": [
+          {
+            "path": "python_dateutil-2.9.0.post0.dist-info/LICENSE",
+            "sha256": "ba00f51a0d92823b5a1cde27d8b5b9d2321e67ed8da9bc163eff96d5e17e577e",
+            "excerpt": "Copyright 2017- Paul Ganssle <paul@ganssle.io>\nCopyright 2017- dateutil contributors (see AUTHORS file)\n\n   Licensed under the Apache License, Version 2.0 (the \"License\");\n   you may not use this file except in compliance with the License.\n   You may obtain a copy of the License at\n\n       http://www.apache.org/license"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "optional:aws-kms"
+      ]
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.3",
+      "source": "https://pypi.org/pypi/python-dotenv/1.2.3/json",
+      "license_expression": null,
+      "normalized_legacy_license": "BSD-3-Clause",
+      "legacy_license_excerpt": "BSD-3-Clause",
+      "legacy_license_sha256": "118dbcd2d5c9f9b296a9ede9fcc469c5840f7b98ad2c88461055bf2ceda38037",
+      "license_classifiers": [],
+      "metadata_sha256": "3bbfaba3c2f97623da2a353067b509c493110ae3be1fbddcb2eae593e294dfc2",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "python-multipart",
+      "version": "0.0.32",
+      "source": "https://pypi.org/pypi/python-multipart/0.0.32/json",
+      "license_expression": "Apache-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "a031fb02f69ea8125edc9473c7bc8d3876556de8812dcd694d76482631d7fc2b",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "pywin32",
+      "version": "312",
+      "source": "https://pypi.org/pypi/pywin32/312/json",
+      "license_expression": null,
+      "normalized_legacy_license": "",
+      "legacy_license_excerpt": "PSF",
+      "legacy_license_sha256": "75ae544a2b87bbbdbb3fa306ecfddaad2844063837e5491352820ce35bbde5d3",
+      "license_classifiers": [
+        "License :: OSI Approved :: Python Software Foundation License"
+      ],
+      "metadata_sha256": "f142c39d2740c13a932c795fb7f47af150185dbf6713cefa93ee5bd1e030d31f",
+      "manual_review": true,
+      "declared_license": "UNRESOLVED",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "wheel_evidence": {
+        "url": "https://files.pythonhosted.org/packages/2d/41/12fbfd7f36ed2146d8bc9de96c2741296bf0d490b98508496cff322e274c/pywin32-312-cp313-cp313-win32.whl",
+        "sha256": "7a27df850933d16a8eabfbaeb73d52b273e2da667f80d70b01a89d1f6828d02c",
+        "license_files": [
+          {
+            "path": "adodbapi/license.txt",
+            "sha256": "5ea2f23c7f00c3006bacf267183e816d8d4b6dc95ea57a4ddb0ff81de6d8719e",
+            "excerpt": "\t\t  GNU LESSER GENERAL PUBLIC LICENSE\r\n\t\t       Version 2.1, February 1999\r\n\r\n Copyright (C) 1991, 1999 Free Software Foundation, Inc.\r\n     59 Temple Place, Suite 330, Boston, MA  02111-1307  USA\r\n Everyone is permitted to copy and distribute verbatim copies\r\n of this license document, but changing it is not allowed.\r"
+          },
+          {
+            "path": "pythonwin/License.txt",
+            "sha256": "a74d826efb242db087b850348e20abbfd591b51e2081f2048735290913872924",
+            "excerpt": "Unless stated in the specific source file, this work is\r\nCopyright (c) 1994-2008, Mark Hammond\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions\r\nare met:\r\n\r\nRedistributions of source code must retain the above"
+          },
+          {
+            "path": "pythonwin/Scintilla-License.txt",
+            "sha256": "57ec79bbeab4fd1cf7460a7ad450d2ab01471810459aeae9e75e4c66b472095f",
+            "excerpt": "License for Scintilla and SciTE\r\n\r\nCopyright 1998-2003 by Neil Hodgson <neilh@scintilla.org>\r\n\r\nAll Rights Reserved\r\n\r\nPermission to use, copy, modify, and distribute this software and its\r\ndocumentation for any purpose and without fee is hereby granted,\r\nprovided that the above copyright notice appear in all copies an"
+          },
+          {
+            "path": "pythonwin/pywin/idle/LICENSE.txt",
+            "sha256": "a0fa1e7b8a4230055685e796548ac084a6c0eea395294574093bba72efd9191b",
+            "excerpt": "A. HISTORY OF THE SOFTWARE\r\n==========================\r\n\r\nPython was created in the early 1990s by Guido van Rossum at Stichting\r\nMathematisch Centrum (CWI, see http://www.cwi.nl) in the Netherlands\r\nas a successor of a language called ABC.  Guido remains Python's\r\nprincipal author, although it includes many contributi"
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/adodbapi/license.txt",
+            "sha256": "5ea2f23c7f00c3006bacf267183e816d8d4b6dc95ea57a4ddb0ff81de6d8719e",
+            "excerpt": "\t\t  GNU LESSER GENERAL PUBLIC LICENSE\r\n\t\t       Version 2.1, February 1999\r\n\r\n Copyright (C) 1991, 1999 Free Software Foundation, Inc.\r\n     59 Temple Place, Suite 330, Boston, MA  02111-1307  USA\r\n Everyone is permitted to copy and distribute verbatim copies\r\n of this license document, but changing it is not allowed.\r"
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/com/License.txt",
+            "sha256": "fad39c18fc3825fa278db1c86fd52cf88d7c525b3c2fbf7817fa383cbae4d423",
+            "excerpt": "Unless stated in the specific source file, this work is\r\nCopyright (c) 1996-2008, Greg Stein and Mark Hammond.\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions\r\nare met:\r\n\r\nRedistributions of source code must "
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/com/win32comext/mapi/src/MAPIStubLibrary/LICENSE",
+            "sha256": "1c4cf44d2fb8bf2d10214d6da80cc9e05502824cc4460f35be4c7bcb4cde53da",
+            "excerpt": "MIT License\r\n\r\nCopyright (c) 2018 Microsoft\r\n\r\nPermission is hereby granted, free of charge, to any person obtaining a copy\r\nof this software and associated documentation files (the \"Software\"), to deal\r\nin the Software without restriction, including without limitation the rights\r\nto use, copy, modify, merge, publish, "
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/isapi/README.txt",
+            "sha256": "41383bcc95edb8138d37077ae54bfdcbd2a3b77bf745a8529a9c161146e22303",
+            "excerpt": "A Python ISAPI extension.  Contributed by Phillip Frantz, and is\r\nCopyright 2002-2003 by Blackdog Software Pty Ltd.\r\n\r\nSee the 'samples' directory, and particularly samples\\README.txt\r\n\r\nYou can find documentation in the PyWin32.chm file that comes with pywin32 -\r\nyou can open this from Pythonwin->Help, or from the sta"
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/pythonwin/License.txt",
+            "sha256": "a74d826efb242db087b850348e20abbfd591b51e2081f2048735290913872924",
+            "excerpt": "Unless stated in the specific source file, this work is\r\nCopyright (c) 1994-2008, Mark Hammond\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions\r\nare met:\r\n\r\nRedistributions of source code must retain the above"
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/pythonwin/Scintilla/License.txt",
+            "sha256": "57ec79bbeab4fd1cf7460a7ad450d2ab01471810459aeae9e75e4c66b472095f",
+            "excerpt": "License for Scintilla and SciTE\r\n\r\nCopyright 1998-2003 by Neil Hodgson <neilh@scintilla.org>\r\n\r\nAll Rights Reserved\r\n\r\nPermission to use, copy, modify, and distribute this software and its\r\ndocumentation for any purpose and without fee is hereby granted,\r\nprovided that the above copyright notice appear in all copies an"
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/pythonwin/pywin/idle/LICENSE.txt",
+            "sha256": "a0fa1e7b8a4230055685e796548ac084a6c0eea395294574093bba72efd9191b",
+            "excerpt": "A. HISTORY OF THE SOFTWARE\r\n==========================\r\n\r\nPython was created in the early 1990s by Guido van Rossum at Stichting\r\nMathematisch Centrum (CWI, see http://www.cwi.nl) in the Netherlands\r\nas a successor of a language called ABC.  Guido remains Python's\r\nprincipal author, although it includes many contributi"
+          },
+          {
+            "path": "pywin32-312.dist-info/licenses/win32/License.txt",
+            "sha256": "a74d826efb242db087b850348e20abbfd591b51e2081f2048735290913872924",
+            "excerpt": "Unless stated in the specific source file, this work is\r\nCopyright (c) 1994-2008, Mark Hammond\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions\r\nare met:\r\n\r\nRedistributions of source code must retain the above"
+          },
+          {
+            "path": "win32/License.txt",
+            "sha256": "a74d826efb242db087b850348e20abbfd591b51e2081f2048735290913872924",
+            "excerpt": "Unless stated in the specific source file, this work is\r\nCopyright (c) 1994-2008, Mark Hammond\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions\r\nare met:\r\n\r\nRedistributions of source code must retain the above"
+          },
+          {
+            "path": "win32com/License.txt",
+            "sha256": "fad39c18fc3825fa278db1c86fd52cf88d7c525b3c2fbf7817fa383cbae4d423",
+            "excerpt": "Unless stated in the specific source file, this work is\r\nCopyright (c) 1996-2008, Greg Stein and Mark Hammond.\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions\r\nare met:\r\n\r\nRedistributions of source code must "
+          },
+          {
+            "path": "win32comext/License.txt",
+            "sha256": "fad39c18fc3825fa278db1c86fd52cf88d7c525b3c2fbf7817fa383cbae4d423",
+            "excerpt": "Unless stated in the specific source file, this work is\r\nCopyright (c) 1996-2008, Greg Stein and Mark Hammond.\r\nAll rights reserved.\r\n\r\nRedistribution and use in source and binary forms, with or without\r\nmodification, are permitted provided that the following conditions\r\nare met:\r\n\r\nRedistributions of source code must "
+          },
+          {
+            "path": "win32comext/mapi/MAPIStubLibrary-License.txt",
+            "sha256": "1c4cf44d2fb8bf2d10214d6da80cc9e05502824cc4460f35be4c7bcb4cde53da",
+            "excerpt": "MIT License\r\n\r\nCopyright (c) 2018 Microsoft\r\n\r\nPermission is hereby granted, free of charge, to any person obtaining a copy\r\nof this software and associated documentation files (the \"Software\"), to deal\r\nin the Software without restriction, including without limitation the rights\r\nto use, copy, modify, merge, publish, "
+          },
+          {
+            "path": "win32comext/mapi/NOTICE.md",
+            "sha256": "dedf997c8f5568a0e0aff57d009f501226ea30c401323d67912b6a8f8735a825",
+            "excerpt": "# Licensing\r\n\r\nThis distributed package contains components under multiple licenses:\r\n\r\n- `mapi.pyd` and `exchange.pyd` include compiled code licensed under the MIT License. See [com/win32comext/mapi/src/MAPIStubLibrary/LICENSE](https://github.com/mhammond/pywin32/blob/main/com/win32comext/mapi/src/MAPIStubLibrary/LICE"
+          }
+        ],
+        "status": "Lockfile hash verified; license files require interpretation"
+      },
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "referencing",
+      "version": "0.37.0",
+      "source": "https://pypi.org/pypi/referencing/0.37.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "a67968d8e03aa45e650fc2ff0d07796676db1a7841ce8e810bf2dba5af689464",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "source": "https://pypi.org/pypi/requests/2.34.2/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache-2.0",
+      "legacy_license_sha256": "2af71558e438db0b73a20beab92dc278a94e1bbe974c00c1a33e3ab62d53a608",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "8622e50ffd295ed759ec793f2a009172a4ed0204bbc5e948de23111bc3d2aeae",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:azure-kms",
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "rpds-py",
+      "version": "2026.6.3",
+      "source": "https://pypi.org/pypi/rpds-py/2026.6.3/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "fff1fa33d84392d5684f0c1a40fc23f0a2027113c966498a1f64614bc83b02c2",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "ruff",
+      "version": "0.16.6",
+      "source": "https://pypi.org/pypi/ruff/0.16.6/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "0749b0af984bbfbe46705325008e12322f4a5dedc2e9e6bcad6e31efe07dd9da",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev"
+      ]
+    },
+    {
+      "name": "s3transfer",
+      "version": "0.19.2",
+      "source": "https://pypi.org/pypi/s3transfer/0.19.2/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache License 2.0",
+      "legacy_license_sha256": "e99dd4b311146507c3d0a887ca12e50387fe644c8aaa86cb500b50c068062543",
+      "license_classifiers": [
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "metadata_sha256": "47d3b7fa53ad53f0f96c331aa7805a87dd49b741e7d28fdb31467e9cac9dd0df",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:aws-kms"
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "source": "https://pypi.org/pypi/six/1.17.0/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "metadata_sha256": "d8de39dd52b73048d81a8fd78022ee2bc72f8b568bcf0d88e5d5069c302b1208",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:aws-kms"
+      ]
+    },
+    {
+      "name": "sqlalchemy",
+      "version": "2.0.52",
+      "source": "https://pypi.org/pypi/sqlalchemy/2.0.52/json",
+      "license_expression": null,
+      "normalized_legacy_license": "MIT",
+      "legacy_license_excerpt": "MIT",
+      "legacy_license_sha256": "e5dcffe836b6ec8a58e492419b550e65fb8cbdc308503979e5dacb33ac7ea3b7",
+      "license_classifiers": [],
+      "metadata_sha256": "3b76acec5c91a48523f59bcba4101b59963f9ae6233748bd407efb901301b906",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "sse-starlette",
+      "version": "3.4.11",
+      "source": "https://pypi.org/pypi/sse-starlette/3.4.11/json",
+      "license_expression": "BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "baa2d064ff23732ff59b4c76eb6e1f92810468ebffc7e532a2f75bf793e546a9",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "starlette",
+      "version": "1.6.0",
+      "source": "https://pypi.org/pypi/starlette/1.6.0/json",
+      "license_expression": "BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "d382720672585edde34dcad36d32ead28f5a4271e3fee164ffc128b20170d71e",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "source": "https://pypi.org/pypi/typing-extensions/4.16.0/json",
+      "license_expression": "PSF-2.0",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "2140da00d62dde967f52d0be0ae28444f1d6a3fe603f52c83c23988c32122d5a",
+      "manual_review": false,
+      "declared_license": "PSF-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "development:dev",
+        "optional:azure-kms",
+        "optional:gcp-kms",
+        "runtime"
+      ]
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.4",
+      "source": "https://pypi.org/pypi/typing-inspection/0.4.4/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "0605416f2f37f2df04e45360cf5ce4ca5eeca6d414bb6ddb1ec5a9893c62ac30",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "tzdata",
+      "version": "2026.3",
+      "source": "https://pypi.org/pypi/tzdata/2026.3/json",
+      "license_expression": null,
+      "normalized_legacy_license": "Apache-2.0",
+      "legacy_license_excerpt": "Apache-2.0",
+      "legacy_license_sha256": "2af71558e438db0b73a20beab92dc278a94e1bbe974c00c1a33e3ab62d53a608",
+      "license_classifiers": [],
+      "metadata_sha256": "803cc078e95743a65df3400feac314ee93a4c5bf9fbb1acf62938d50fe88660e",
+      "manual_review": false,
+      "declared_license": "Apache-2.0",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "2.7.0",
+      "source": "https://pypi.org/pypi/urllib3/2.7.0/json",
+      "license_expression": "MIT",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "a0375620087b0c3b6c4b6b1f6a694537acaac10bfb0e8ac856078648ffed4199",
+      "manual_review": false,
+      "declared_license": "MIT",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "optional:aws-kms",
+        "optional:azure-kms",
+        "optional:gcp-kms"
+      ]
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.52.4",
+      "source": "https://pypi.org/pypi/uvicorn/0.52.4/json",
+      "license_expression": "BSD-3-Clause",
+      "normalized_legacy_license": null,
+      "legacy_license_excerpt": null,
+      "legacy_license_sha256": null,
+      "license_classifiers": [],
+      "metadata_sha256": "df5abebabb548a9a8f9b058e1e7c55474942363b876384a55a1d7b4e8901655d",
+      "manual_review": false,
+      "declared_license": "BSD-3-Clause",
+      "evidence": "publisher-reported version-specific PyPI metadata",
+      "groups": [
+        "runtime"
+      ]
+    }
+  ]
+}

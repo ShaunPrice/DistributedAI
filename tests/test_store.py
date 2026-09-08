@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the DistributedAI persistence core (distributedai.store).
 
 Runs on SQLite for speed (PostgreSQL is the deployment authority). All tokens are synthetic

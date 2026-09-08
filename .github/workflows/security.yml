@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Security checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.8.22'
+      - run: uv sync --frozen --python 3.12
+      - run: uvx --from bandit==1.8.6 bandit -r distributedai -ll
+      - run: uv export --frozen --all-extras --no-dev --no-emit-project --format requirements-txt -o /tmp/distributedai-requirements.txt
+      - run: uvx --from pip-audit==2.9.0 pip-audit -r /tmp/distributedai-requirements.txt --no-deps --disable-pip
+  codeql:
+    # Public repositories can use CodeQL free. Do not enable paid private scanning implicitly.
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python,javascript-typescript
+      - uses: github/codeql-action/analyze@v3

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Protocol perimeter tests, independent of the persistence implementation."""
 import time
 from types import SimpleNamespace
