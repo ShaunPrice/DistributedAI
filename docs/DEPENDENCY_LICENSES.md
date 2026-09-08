@@ -80,7 +80,7 @@ The authoritative inventory is [dependency-licenses.json](dependency-licenses.js
 | pydantic-settings | 2.15.0 | MIT |
 | pygments | 2.21.0 | BSD-2-Clause |
 | pyjwt | 2.13.0 | MIT |
-| pytest | 8.4.2 | MIT |
+| pytest | 9.1.1 | MIT |
 | pytest-asyncio | 1.4.0 | Apache-2.0 |
 | python-dateutil | 2.9.0.post0 | UNRESOLVED |
 | python-dotenv | 1.2.3 | BSD-3-Clause |

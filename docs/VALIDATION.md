@@ -23,7 +23,7 @@ Validated on 2026-09-08. This is an initial implementation, not a security certi
 | Billing | Quotas, concurrent PostgreSQL reservations, connection revocation/downgrades, verified mock webhooks, checkout binding and metadata-only plan overrides covered |
 | Lambda bootstrap | 4 additional unit tests passed for the secret-loading adapter |
 | Dependency audit | 70 locked third-party Python versions inventoried; incomplete declarations and native/image review gaps documented |
-| Security tools | pip-audit found no known runtime dependency vulnerabilities; Bandit reported no medium/high findings (one low finding remains) |
+| Security tools | Runtime-only pip-audit initially found no known vulnerabilities; GitHub subsequently identified development-only pytest CVE-2025-71176, prompting an upgrade to 9.1.1 and inclusion of development dependencies in scanning; Bandit reported no medium/high findings (one low finding remains) |
 | Cloud installer dependency | Docker Compose v5.5.0 binary and checksum assets verified through Docker's GitHub release API |
 | Code hygiene | Ruff and Git whitespace checks passed; generated secret values absent from staged source |
 
