@@ -24,6 +24,7 @@ class Settings:
     requests_per_minute: int = 300
     management_key: str = ""
 
+    serve_assets: bool = True
     billing_enabled: bool = False
     billing_plan_limits: dict = field(default_factory=dict)
     billing_prices: dict = field(default_factory=dict)
@@ -97,6 +98,7 @@ class Settings:
             allowed_origins=[v for v in os.getenv("ALLOWED_ORIGINS", "").split(",") if v],
             requests_per_minute=int(os.getenv("REQUESTS_PER_MINUTE", "300")),
             management_key=secret("MANAGEMENT_KEY"),
+            serve_assets=os.getenv("SERVE_ASSETS", "true").lower() == "true",
             billing_enabled=os.getenv("BILLING_ENABLED", "false").lower() == "true",
             billing_plan_limits=json.loads(secret("BILLING_PLAN_LIMITS", "{}")),
             billing_prices=json.loads(secret("BILLING_PRICES", "{}")),

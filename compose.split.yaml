@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Requires Docker Compose 2.24.4+ for !reset. Same public origin preserves CSRF/cookies.
+services:
+  db:
+    networks: [data]
+  init:
+    networks: [data]
+  bootstrap:
+    networks: [data]
+  api:
+    ports: !reset []
+    networks: [application, data]
+    environment:
+      SERVE_ASSETS: "false"
+      TRUSTED_PROXY_IPS: ${WEB_PROXY_IP:-172.30.248.10}
+  web:
+    image: distributedai-web:0.1.0
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    ports: ["127.0.0.1:${PORT:-8090}:8080"]
+    environment:
+      API_UPSTREAM: api:8090
+    networks:
+      application:
+        ipv4_address: ${WEB_PROXY_IP:-172.30.248.10}
+    depends_on:
+      api: {condition: service_healthy}
+    read_only: true
+    tmpfs: ["/tmp", "/config:uid=10001,gid=10001", "/data:uid=10001,gid=10001"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/manage/]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+networks:
+  application:
+    ipam:
+      config:
+        - subnet: ${APP_SUBNET:-172.30.248.0/24}
+  data:
+    internal: true

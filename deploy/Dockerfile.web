@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+FROM caddy:2.10.2-alpine
+# Port 8080 needs no capabilities; remove the upstream low-port file capability.
+RUN setcap -r /usr/bin/caddy
+COPY distributedai/static /srv/distributedai
+COPY deploy/Caddyfile.web /etc/caddy/Caddyfile
+USER 10001:10001
+EXPOSE 8080
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

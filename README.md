@@ -75,6 +75,8 @@ The offline database operator provisions additional organisations; tenant admini
 | [Operating costs](docs/COSTS.md) | Indicative assumptions and estimates, not measured unit costs |
 | [Import](docs/MIGRATION.md) | Scoped import from reviewed Cognitive-Memory exports |
 | [Validation](docs/VALIDATION.md) | Test evidence, known gaps and limitations |
+| [Layer separation](docs/LAYERS.md) | Code boundaries and independent web, application and database containers |
+| [Security baseline](docs/SECURITY_REVIEW.md) | Implemented controls, regression evidence and deployment responsibilities |
 | [Security](SECURITY.md) | Reporting and repository scanning |
 
 Internet access requires a domain, HTTPS and a configured authentication path. Cloud templates create chargeable resources only when an operator applies them. Local setup does not deploy to a cloud.

@@ -66,3 +66,5 @@ docker compose exec -T db pg_dump -U distributedai -d distributedai -Fc > output
 ```
 
 Protect and copy backups to your approved encrypted backup location. Test restores into a separate database/deployment before relying on them. Restoring also restores identities, token hashes and grants, so reassess revoked credentials before using a recovered database. Management session encryption keys and OAuth subject bindings need their own protected backup. Runtime health is exposed at `/healthz` without tenant content.
+
+See [layered deployment](LAYERS.md) and [security baseline and remaining gaps](SECURITY_REVIEW.md) for the current separation and security controls.

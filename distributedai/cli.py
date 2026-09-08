@@ -34,9 +34,17 @@ def main():
         return proxy()
     if args.command == "serve":
         import uvicorn
+        import logging
+        audit_logger = logging.getLogger("distributedai.security")
+        audit_logger.setLevel(logging.INFO)
+        if not audit_logger.handlers:
+            audit_logger.addHandler(logging.StreamHandler())
+        audit_logger.propagate = False
         return uvicorn.run("distributedai.server:create_app", factory=True,
                            host=os.getenv("BIND_HOST", "127.0.0.1"), port=8090,
-                           access_log=False, proxy_headers=False)
+                           access_log=False, server_header=False,
+                           proxy_headers=bool(os.getenv("TRUSTED_PROXY_IPS")),
+                           forwarded_allow_ips=os.getenv("TRUSTED_PROXY_IPS", ""))
     from .runtime import configured_store
     store = configured_store(Settings.from_env())
     if args.command == "encrypt-existing":

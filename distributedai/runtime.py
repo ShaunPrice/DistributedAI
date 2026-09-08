@@ -2,15 +2,15 @@
 """Build runtime services from deployment secrets; plaintext storage is never a serve option."""
 import base64
 
-from .encryption import CryptoBox, LocalWrapper, AWSKMSWrapper, AzureKeyVaultWrapper, GCPKMSWrapper
-from .store import Store
+from .persistence.encryption import CryptoBox, LocalWrapper, AWSKMSWrapper, AzureKeyVaultWrapper, GCPKMSWrapper
+from .persistence.workspace import Store
 
 
 def configured_store(settings, *, encryption=True):
     store = Store(settings.database_url, billing_enabled=settings.billing_enabled,
                   plan_limits=settings.billing_plan_limits)
     store.billing.price_map = dict(settings.billing_prices)
-    from .billing import StripeProvider, PayPalProvider
+    from .application.payments import StripeProvider, PayPalProvider
     if settings.billing_enabled:
         for name, options in settings.payment_providers.items():
             if name == "stripe":
@@ -31,16 +31,17 @@ def configured_store(settings, *, encryption=True):
                 raise ValueError("Invalid configured key provider")
             providers[alias] = factories[entry["type"]](entry["key_id"])
         crypto = CryptoBox(store._engine, providers)
-        from .storage_encryption import enable_encryption
+        from .persistence.storage_encryption import enable_encryption
         enable_encryption(store, crypto)
-    from .billing_http import metadata as billing_http_metadata
-    from .platform import PlatformService, metadata as platform_metadata
-    from .encryption import metadata as encryption_metadata
+    from .persistence.checkout import metadata as billing_http_metadata
+    from .persistence.platform import build_platform_service, metadata as platform_metadata
+    from .persistence.encryption import metadata as encryption_metadata
     from sqlalchemy import text
-    from .store import ServiceError
-    platform = PlatformService(store._engine)
+    from .domain import ServiceError
+    platform = build_platform_service(store._engine)
     store.platform = platform
     platform.billing = store.billing
+    from .persistence.sessions import metadata as session_metadata
     original_initialize = store.initialize
     def initialize():
         original_initialize()
@@ -50,6 +51,7 @@ def configured_store(settings, *, encryption=True):
             platform_metadata.create_all(conn)
             billing_http_metadata.create_all(conn)
             encryption_metadata.create_all(conn)
+            session_metadata.create_all(conn)
     store.initialize = initialize
     for method in ("authenticate", "resolve_principal"):
         original = getattr(store, method)

@@ -145,3 +145,24 @@ async def test_tenant_key_rotation_is_scoped_and_preserves_history(runtime):
         assert manual not in status.text and "wrapped_key" not in status.text
     assert env.store.crypto.status(env.second["org_id"]) == other_before
     assert env.store.dispatch(env.owner, "memory_search", {"scope_id": root, "query": "historical"})["records"][0]["content"] == "Confidential historical value"
+
+
+@pytest.mark.parametrize("path,token,cookie_name", [
+    ("manage", OWNER, "da_management"),
+    ("platform", CENTRAL, "da_platform"),
+])
+async def test_logout_rejects_copied_cookie_on_other_instance(runtime, path, token, cookie_name):
+    transport = httpx.ASGITransport(app=runtime.app)
+    async with httpx.AsyncClient(transport=transport, base_url=ORIGIN, headers={"Origin": ORIGIN}) as client:
+        assert (await client.post(f"/{path}/login", json={"token": token})).status_code == 200
+        copied = client.cookies.get(cookie_name)
+        assert (await client.get(f"/{path}/state")).status_code == 200
+        assert (await client.post(f"/{path}/logout", json={})).status_code == 200
+    replica = configured_store(runtime.settings)
+    replica_app = Starlette(routes=[
+        Mount("/manage", app=management_app(replica, runtime.settings)),
+        Mount("/platform", app=platform_app(replica.platform, runtime.settings)),
+    ])
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=replica_app), base_url=ORIGIN) as client:
+        response = await client.get(f"/{path}/state", headers={"Cookie": f"{cookie_name}={copied}"})
+        assert response.status_code == 401

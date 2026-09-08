@@ -11,3 +11,5 @@ Never commit `.secrets`, `.env`, database dumps, Terraform state, private conver
 Dependabot alerts and automated security updates are enabled. The security workflow runs Bandit and pip-audit on pushes and pull requests, including while the repository is private. Its CodeQL job is configured to run when the repository is public; it deliberately skips private runs without an applicable paid entitlement. Public visibility alone does not validate deployment security or prove the absence of vulnerabilities.
 
 AGPL/Apache licensing does not activate GitHub security products. Eligibility depends on repository visibility, account entitlement and settings. Review scanning configuration when changing visibility; container/native dependency scanning and independent penetration testing remain outstanding.
+
+See [layered deployment](docs/LAYERS.md) and [security baseline and remaining gaps](docs/SECURITY_REVIEW.md) for the current separation and security controls.

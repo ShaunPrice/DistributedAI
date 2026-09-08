@@ -16,11 +16,16 @@ jobs:
       - run: uv run python scripts/audit_licenses.py --check-lock
       - run: uv run pytest -q
       - run: uv run python -m unittest discover -s deploy -p 'test_*.py'
+      - run: docker build -f deploy/Dockerfile.web -t distributedai-web:test .
+      - run: docker run --rm distributedai-web:test caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - run: python3 scripts/setup.py --generate-only
       - run: docker compose -f compose.yaml -f compose.test.yaml build test
       - run: docker compose -f compose.yaml -f compose.test.yaml run --rm test
+      - run: docker compose -f compose.yaml -f compose.split.yaml up -d --build --wait web
+      - run: docker compose -f compose.yaml -f compose.split.yaml --profile setup run --rm bootstrap
+      - run: uv run python scripts/smoke.py
       - if: always()
-        run: docker compose -f compose.yaml -f compose.test.yaml down --volumes
+        run: docker compose -f compose.yaml -f compose.split.yaml -f compose.test.yaml down --volumes
   terraform:
     strategy:
       matrix:
