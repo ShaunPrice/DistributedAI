@@ -7,6 +7,7 @@ x-app: &app
     context: .
     target: runtime
   environment: &environment
+    SUPPORT_DEFAULTS_FILE: /run/secrets/support_defaults
     DB_HOST: db
     DB_PASSWORD_FILE: /run/secrets/db_password
     PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:8090/mcp}
@@ -32,7 +33,7 @@ x-app: &app
     LOGIN_CLIENT_SECRET_FILE: /run/secrets/login_client_secret
     LOGIN_SUBJECTS_FILE: /run/secrets/login_subjects
     MANAGEMENT_KEY_FILE: /run/secrets/management_key
-  secrets: [db_password, oidc_subjects, management_key, login_client_secret, login_subjects, content_master_key, key_providers, tenant_key_providers, platform_admin_token, platform_subjects, billing_plan_limits, billing_prices, payment_providers, oidc_connections]
+  secrets: [support_defaults, db_password, oidc_subjects, management_key, login_client_secret, login_subjects, content_master_key, key_providers, tenant_key_providers, platform_admin_token, platform_subjects, billing_plan_limits, billing_prices, payment_providers, oidc_connections]
   read_only: true
   tmpfs: [/tmp]
   cap_drop: [ALL]
@@ -75,12 +76,13 @@ services:
     environment:
       <<: *environment
       BOOTSTRAP_TOKEN_FILE: /run/secrets/bootstrap_token
-    secrets: [db_password, oidc_subjects, bootstrap_token, management_key, login_client_secret, login_subjects, content_master_key, key_providers, tenant_key_providers, platform_admin_token, platform_subjects, billing_plan_limits, billing_prices, payment_providers, oidc_connections]
+    secrets: [support_defaults, db_password, oidc_subjects, bootstrap_token, management_key, login_client_secret, login_subjects, content_master_key, key_providers, tenant_key_providers, platform_admin_token, platform_subjects, billing_plan_limits, billing_prices, payment_providers, oidc_connections]
     command: [distributedai, bootstrap]
     depends_on:
       init: {condition: service_completed_successfully}
 
 secrets:
+  support_defaults: {file: ./.secrets/support_defaults.json}
   db_password: {file: ./.secrets/db_password}
   bootstrap_token: {file: ./.secrets/bootstrap_token}
   oidc_subjects: {file: ./.secrets/oidc_subjects.json}

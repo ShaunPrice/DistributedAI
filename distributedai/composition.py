@@ -14,11 +14,21 @@ def as_application(repository, settings, *, initialize_compat=False):
     from .persistence.sessions import SQLBrowserSessions, metadata
     if initialize_compat:
         metadata.create_all(repository._engine)
+    from .application.support import SupportApplication
+    from .persistence.support import SQLSupportRepository, metadata as support_metadata
+    if initialize_compat:
+        support_metadata.create_all(repository._engine)
+    defaults = getattr(settings, "support_defaults", {})
+    support = SupportApplication(repository, SQLSupportRepository(repository._engine, getattr(repository, "crypto", None)),
+        solution_url=defaults.get("solution_url", ""), solution_principals=defaults.get("solution_principals", []),
+        org_url=defaults.get("org_url", ""))
+    if getattr(repository, "platform", None):
+        repository.platform.support = support
     sessions = BrowserSessions(SQLBrowserSessions(repository._engine))
     keys = KeyApplication(repository, repository.crypto, settings.tenant_key_providers) if getattr(repository, "crypto", None) else None
     billing = compose_billing_application(repository, settings)
     return WorkspaceApplication(repository, metered=repository.billing.enabled,
-        keys=keys, sessions=sessions, billing_application=billing, platform=getattr(repository, "platform", None))
+        keys=keys, sessions=sessions, support=support, billing_application=billing, platform=getattr(repository, "platform", None))
 
 
 def configured_application(settings):

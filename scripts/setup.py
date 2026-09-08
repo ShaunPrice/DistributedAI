@@ -16,7 +16,23 @@ import subprocess
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--generate-only", action="store_true")
+    parser.add_argument("--solution-support-url", help="HTTPS portal for organisation administrators")
+    parser.add_argument("--org-support-url", help="Default HTTPS portal for organisation users")
+    parser.add_argument("--solution-support-user", action="append", help="Existing principal ID assigned solution support")
     args = parser.parse_args()
+    from urllib.parse import urlparse
+    for value in (args.solution_support_url, args.org_support_url):
+        if value:
+            try:
+                url = urlparse(value)
+                url.port
+                valid = (len(value) <= 2048 and url.scheme == "https" and url.hostname
+                    and not (url.username or url.password or url.fragment) and "\\" not in value
+                    and not any(ord(c) < 33 or ord(c) == 127 for c in value))
+            except ValueError:
+                valid = False
+            if not valid:
+                parser.error("Support portals must be credential-free HTTPS URLs")
     root = Path(__file__).resolve().parents[1]
     folder = root / ".secrets"
     folder.mkdir(mode=0o700, exist_ok=True)
@@ -40,6 +56,19 @@ def main():
         with os.fdopen(fd, "w") as output:
             output.write(value + "\n")
         (folder / name).chmod(0o444)
+    support_file = folder / "support_defaults.json"
+    support = json.loads(support_file.read_text()) if support_file.exists() else {}
+    for key, value in (("solution_url", args.solution_support_url), ("org_url", args.org_support_url),
+                       ("solution_principals", args.solution_support_user)):
+        if value is not None:
+            support[key] = value
+    temporary = folder / ("support-" + secrets.token_hex(8) + ".tmp")
+    try:
+        temporary.write_text(json.dumps(support) + "\n")
+        temporary.chmod(0o444)
+        temporary.replace(support_file)
+    finally:
+        temporary.unlink(missing_ok=True)
     if args.generate_only:
         print("Secret files prepared; existing files preserved.")
         return

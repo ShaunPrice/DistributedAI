@@ -919,3 +919,32 @@ tr:last-child td {
 .full-width { grid-column: 1 / -1; }
 
 textarea { width: 100%; box-sizing: border-box; border: 1px solid #cad5df; border-radius: .6rem; padding: .8rem; font: inherit; color: inherit; background: #fff; resize: vertical; }
+
+.help-dialog { width: min(640px, 92vw); border: 1px solid var(--line); border-radius: 1rem; padding: 1.8rem; color: var(--ink); box-shadow: 0 24px 80px #142a4940; }
+.help-dialog::backdrop { background: #10273980; }
+.help-dialog p { line-height: 1.7; }
+.help-dialog > button:first-child { float: right; }
+.help-dialog h2 { padding-top: 2rem; }
+.preserve-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.check-label { display: flex; gap: .7rem; align-items: start; margin: 1rem 0; }
+.check-label input { width: auto; margin-top: .3rem; }
+#support-view form > label, #solution-support-form > label { display: block; margin: 1rem 0; }
+#support-staff { min-height: 7rem; }
+
+.support-new summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+#support-ticket-meta { overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+#support-view .check-label { display: flex; }
+
+.support-row { display: flex; justify-content: space-between; gap: 1.5rem; width: 100%; text-align: left; padding: 20px 24px; margin: 10px 0; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 12px; }
+.support-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.support-row > span:last-child { flex-shrink: 0; align-self: center; }
+.support-row small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; margin-top: 8px; }
+.support-row:hover { background: #f6f8fd; border-color: #7b92ba; }
+
+.sidebar { overflow-y: auto; }
+@media (min-width: 721px) and (max-height: 850px) {
+  .sidebar-note { display: none; }
+  .sidebar .identity { margin-top: auto; }
+  .sidebar nav { padding-bottom: 20px; }
+  .workspace-label { margin-top: 28px; }
+}

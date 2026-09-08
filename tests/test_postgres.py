@@ -124,3 +124,67 @@ def test_first_bootstrap_serialises_across_replicas(env):
         assert sum(result.get("error") == "denied" for result in outcomes) == 1
     finally:
         other._engine.dispose()
+
+
+def test_support_encryption_acl_and_concurrency_across_replicas(env, monkeypatch):
+    from sqlalchemy import select
+
+    from distributedai.application.support import SupportApplication
+    from distributedai.encryption import CryptoBox, LocalWrapper
+    from distributedai.persistence import support as support_sql
+
+    store, owner, worker, _, url = env
+    other = Store(url)
+    try:
+        first_box = CryptoBox(store._engine, {"local": LocalWrapper(b"s" * 32)})
+        first_box.initialize()
+        first_box.provision(owner.org_id)
+        support_sql.metadata.create_all(store._engine)
+        second_box = CryptoBox(other._engine, {"local": LocalWrapper(b"s" * 32)})
+        first_repo = support_sql.SQLSupportRepository(store._engine, first_box)
+        second_repo = support_sql.SQLSupportRepository(other._engine, second_box)
+        first = SupportApplication(store, first_repo)
+        second = SupportApplication(other, second_repo)
+        request = {"subject": "Private support subject", "body": "Private support details",
+                   "page": "Private support page", "idempotency_key": "same-request"}
+        duplicates = race([
+            lambda: first.dispatch(worker, "support_create", request),
+            lambda: second.dispatch(worker, "support_create", request),
+        ])
+        assert sum(result.get("created") is True for result in duplicates) == 1
+        assert sum(result.get("duplicate") is True for result in duplicates) == 1
+        assert len({result["ticket_id"] for result in duplicates}) == 1
+        tid = duplicates[0]["ticket_id"]
+        second.dispatch(owner, "support_reply", {"ticket_id": tid, "body": "Private support answer"})
+        ticket = first.dispatch(worker, "support_get", {"ticket_id": tid})
+        assert ticket["subject"] == request["subject"]
+        assert ticket["body"] == request["body"]
+        assert ticket["page"] == request["page"]
+        assert ticket["replies"][0]["body"] == "Private support answer"
+        stranger_id = store.dispatch(owner, "principal_create", {
+            "name": "stranger", "token": "stranger-integration-" * 4})["principal_id"]
+        stranger = store.resolve_principal(stranger_id)
+        with pytest.raises(ServiceError):
+            second.dispatch(stranger, "support_get", {"ticket_id": tid})
+        # The adapter itself must reject unauthorized decryption, independently of the app.
+        with pytest.raises(ServiceError):
+            second_repo.get(tid, actor_id=stranger.id)
+        with store._engine.connect() as connection:
+            raw_ticket = connection.execute(select(support_sql.tickets)).mappings().one()
+            raw_reply = connection.execute(select(support_sql.replies)).mappings().one()
+            for field in ("subject", "body", "page", "request_digest"):
+                assert raw_ticket[field].startswith("enc:v1:")
+            assert raw_reply["body"].startswith("enc:v1:")
+            assert "Private support" not in repr(dict(raw_ticket)) + repr(dict(raw_reply))
+            assert request["idempotency_key"] not in repr(dict(raw_ticket))
+        # One existing open ticket leaves one slot; two independent connections compete.
+        monkeypatch.setattr(support_sql, "MAX_OPEN", 2)
+        outcomes = race([
+            lambda: first.dispatch(worker, "support_create", {**request, "idempotency_key": "unique-a"}),
+            lambda: second.dispatch(worker, "support_create", {**request, "idempotency_key": "unique-b"}),
+        ])
+        assert sum(result.get("created") is True for result in outcomes) == 1
+        assert sum(result.get("error") == "quota_exceeded" for result in outcomes) == 1
+        assert len(first_repo.list_metadata(org_id=owner.org_id)) == 2
+    finally:
+        other._engine.dispose()

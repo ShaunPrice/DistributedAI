@@ -17,6 +17,7 @@ DistributedAI brings the proposal/review and leased-job patterns from Cognitive-
 
 - Organisation → department → project scopes, inherited roles, immediate principal revocation, and project codes that never act as passwords.
 - Browser console for project creation, users/client identities, access assignments, review queues and audit metadata.
+- Contextual help, encrypted internal support tickets, organisation/solution support routing and configurable external portals. [Support guide and screenshots](docs/SUPPORT.md).
 - Versioned memory proposals, independent review, optimistic version checks, provenance and immutable application-level history.
 - Scoped private messages and jobs with atomic claims, expiring leases, fencing tokens, idempotency, cancellation and independent review.
 - Deterministic injection screening and quarantine. Screening is deliberately not a guarantee: every retrieved payload remains untrusted data.
@@ -64,6 +65,7 @@ The offline database operator provisions additional organisations; tenant admini
 | Guide | What it covers |
 | --- | --- |
 | [Console tour](docs/CONSOLE.md) | Screenshots and workflows for workspace administrators |
+| [Help and support](docs/SUPPORT.md) | Contextual guidance, support routing, internal tickets and your own AI client |
 | [Architecture](docs/ARCHITECTURE.md) | Shared memory, coordination and security boundaries |
 | [Client setup](docs/CLIENTS.md) | MCP connection examples and compatibility limits |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, HTTPS and AWS installation |

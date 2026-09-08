@@ -35,6 +35,8 @@ async function request(path, body) {
 const action = (op, args = {}) => request("api/" + op, args);
 function showLogin() {
   state = null;
+  window.DistributedSupport?.reset();
+  if ($("page-help")) $("page-help").dataset.helpPage = "signin";
   $("workspace").hidden = true;
   $("login-panel").hidden = false;
   $("logout").hidden = true;
@@ -361,7 +363,10 @@ async function switchView(name) {
     audit: "AUDIT TRAIL",
     keys: "ENCRYPTION KEYS",
     billing: "CONNECTIONS & PLAN",
+    support: "HELP & SUPPORT",
   }[name];
+  $("page-help").dataset.helpPage = name;
+  if (name === "support") await window.DistributedSupport.refresh();
   if (name === "reviews") await renderReviews();
   if (name === "audit") await renderAudit();
   if (name === "keys") await renderKeys();

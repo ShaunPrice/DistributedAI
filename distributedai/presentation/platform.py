@@ -37,6 +37,7 @@ def platform_app(service, settings):
     # Domain separation prevents even a valid management cookie from being used here.
     derived = HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
                    info=b"distributedai/platform-session/v1").derive(base64.urlsafe_b64decode(settings.management_key))
+    from .help import help_routes
     cipher = SessionCipher(base64.urlsafe_b64encode(derived), purpose=b"distributedai/platform-session/v1")
     credential_digest = hashlib.sha256(token.encode()).hexdigest()
     cloud_settings = copy.copy(settings)
@@ -80,7 +81,7 @@ def platform_app(service, settings):
 
     async def asset(request):
         name = request.path_params["name"]
-        if name not in {"platform.js", "style.css", "favicon.svg", "icon-projects.svg", "icon-people.svg", "icon-reviews.svg", "icon-billing.svg", "icon-keys.svg", "icon-audit.svg"}:
+        if name not in {"platform.js", "help.js", "style.css", "favicon.svg", "icon-projects.svg", "icon-people.svg", "icon-reviews.svg", "icon-billing.svg", "icon-keys.svg", "icon-audit.svg"}:
             return JSONResponse({"error": "Not found"}, 404)
         return FileResponse(STATIC / name)
 
@@ -155,8 +156,31 @@ def platform_app(service, settings):
         except LookupError:
             return JSONResponse({"error": "Account not found"}, 404)
 
-    return BrowserHeaders(Starlette(routes=[*([Route("/", page), Route("/assets/{name}", asset)] if getattr(settings, "serve_assets", True) else []),
+    async def support_entry(request):
+        support = getattr(service, "support", None)
+        return JSONResponse(await asyncio.to_thread(support.public_options) if support else {"route": {"kind": "internal"}})
+
+    async def support_settings(request):
+        if request.method == "POST" and not csrf(request):
+            return JSONResponse({"error": "Request origin rejected"}, 403)
+        if not await identity(request):
+            return JSONResponse({"error": "Platform sign-in required"}, 401)
+        support = getattr(service, "support", None)
+        if support is None:
+            return JSONResponse({"error": "Support configuration is unavailable"}, 503)
+        try:
+            if request.method == "POST":
+                body = await request.json()
+                if not isinstance(body, dict) or set(body) != {"external_url", "support_principal_ids"}:
+                    raise ValueError()
+                return JSONResponse(await asyncio.to_thread(support.configure_solution, body))
+            return JSONResponse(await asyncio.to_thread(support.solution_configuration))
+        except (ServiceError, ValueError, TypeError):
+            return JSONResponse({"error": "Invalid support configuration"}, 400)
+
+    return BrowserHeaders(Starlette(routes=[*help_routes(),*([Route("/", page), Route("/assets/{name}", asset)] if getattr(settings, "serve_assets", True) else []),
         Route("/login", login, methods=["POST"]), Route("/logout", logout, methods=["POST"]),
         Route("/login-options", login_options), Route("/oidc/start", cloud.start), Route("/oidc/callback", cloud.finish),
+        Route("/support-entry", support_entry), Route("/support-settings", support_settings, methods=["GET", "POST"]),
         Route("/state", state), Route("/accounts", update, methods=["POST"]),
         Route("/accounts/plan", assign_plan, methods=["POST"])]))

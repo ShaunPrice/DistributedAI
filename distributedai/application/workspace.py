@@ -21,13 +21,14 @@ class WorkspaceRepository(Protocol):
 class WorkspaceApplication:
     """Transport-neutral use-case boundary, injectable with any conforming repository."""
     def __init__(self, repository: WorkspaceRepository, *, metered=False,
-                 keys=None, billing_application=None, platform=None, sessions=None):
+                 keys=None, billing_application=None, platform=None, sessions=None, support=None):
         self.__repository = repository
         self.metered = metered
         self.keys = keys
         self.billing_application = billing_application
         self.platform = platform
         self.sessions = sessions
+        self.support = support
 
     def authenticate(self, token: str) -> Principal | None:
         return self.__repository.authenticate(token)
@@ -51,6 +52,10 @@ class WorkspaceApplication:
         actual = self.__repository.resolve_principal(principal.id)
         if actual is None or actual.org_id != principal.org_id or actual.name != principal.name:
             raise ServiceError("denied", "Account or identity unavailable")
+        if operation.startswith("support_"):
+            if self.support is None:
+                raise ServiceError("invalid_state", "Support is not configured")
+            return self.support.dispatch(actual, operation, arguments)
         return self.__repository.dispatch(actual, operation, arguments)
 
     def health(self) -> bool:

@@ -109,6 +109,19 @@ async def test_http_auth_discovery_and_tool_binding(settings):
                                       "params": {"name": "memory_search", "arguments": {"scope_id": "scope"}}}, headers=headers)
             assert not result.json()["result"].get("isError")
             assert store.calls[-1][2] == {"scope_id": "scope", "query": "", "limit": 20}
+            for index, (name, arguments) in enumerate([
+                ("support_options", {}), ("support_ai_context", {}),
+                ("support_create", {"subject": "Reviewed issue", "body": "Synthetic report", "idempotency_key": "mcp-support"}),
+                ("support_reply", {"ticket_id": "ticket", "body": "Reviewed reply", "status": "closed"}),
+            ], start=10):
+                support_result = await client.post("/mcp", json={"jsonrpc": "2.0", "id": index, "method": "tools/call",
+                    "params": {"name": name, "arguments": arguments}}, headers=headers)
+                assert not support_result.json()["result"].get("isError")
+                assert store.calls[-1][1] == name
+                assert all(store.calls[-1][2][key] == value for key, value in arguments.items())
+            help_result = await client.post("/mcp", json={"jsonrpc": "2.0", "id": 20, "method": "tools/call",
+                "params": {"name": "support_help", "arguments": {"page": "signin"}}}, headers=headers)
+            assert help_result.json()["result"]["structuredContent"]["page"] == "signin"
             bad_origin = await client.post("/mcp", json={}, headers={**headers, "Origin": "https://evil.example"})
             assert bad_origin.status_code == 403
             bad_host = await client.post("/mcp", json={}, headers={**headers, "Host": "evil.example"})

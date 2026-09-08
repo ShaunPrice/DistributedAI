@@ -20,6 +20,7 @@ async function refresh() {
   const data = await request("state");
   document.getElementById("signin").hidden = true;
   document.getElementById("console").hidden = false;
+  await loadSolutionSupport();
   const target = document.getElementById("accounts");
   target.replaceChildren();
   for (const account of data.accounts) {
@@ -135,3 +136,23 @@ request("login-options")
     notice.textContent = error.message;
   });
 refresh().catch(() => {});
+
+async function loadSolutionSupport() {
+  const config = await request("support-settings");
+  const form = document.getElementById("solution-support-form");
+  form.elements.external_url.value = config.external_url;
+  form.elements.support_principal_ids.value = config.support_principal_ids.join("\n");
+}
+document.getElementById("solution-support-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    await request("support-settings", {external_url: form.elements.external_url.value.trim(),
+      support_principal_ids: form.elements.support_principal_ids.value.split(/[,\s]+/).filter(Boolean)});
+    notice.textContent = "Solution support configuration saved.";
+    await loadSolutionSupport();
+  } catch (error) {notice.textContent = error.message;}
+  finally {button.disabled = false;}
+});

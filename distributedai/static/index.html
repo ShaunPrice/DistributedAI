@@ -9,6 +9,8 @@
     <link rel="icon" type="image/svg+xml" href="/manage/assets/favicon.svg" />
     <link rel="stylesheet" href="/manage/assets/style.css" />
     <script src="/manage/assets/app.js" defer></script>
+    <script src="/manage/assets/support.js" defer></script>
+    <script src="/manage/assets/help.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to workspace</a>
@@ -27,6 +29,7 @@
         Connect your organisation
       </div>
       <nav aria-label="Workspace">
+        <button data-view="support" class="nav-item"><img width="18" height="18" src="/manage/assets/icon-support.svg" alt="" />Help &amp; support</button>
         <button class="nav-item selected" data-view="projects">
           <img
             src="/manage/assets/icon-projects.svg"
@@ -94,7 +97,7 @@
     <main id="main">
       <header class="topbar">
         <span>WORKSPACE / <strong id="view-label">PROJECTS</strong></span
-        ><span class="edition">EXPERIMENTAL PREVIEW</span>
+        ><span class="edition">EXPERIMENTAL PREVIEW</span><button class="secondary" data-help-page="signin" id="page-help">Help</button>
       </header>
       <div
         id="notice"
@@ -496,6 +499,47 @@
               additional isolation, such as client-side encryption.
             </p>
           </aside>
+        </section>
+        <section id="support-view" class="view" hidden>
+          <div class="page-heading"><div><div class="eyebrow">HELP WHEN YOU NEED IT</div><h1>Help &amp; support</h1>
+          <p>Find guidance, ask your own AI client, or escalate an issue to the right team.</p></div>
+          <button class="secondary" data-help-page="support">Self-help guide</button></div>
+          <div class="scope-strip" id="support-destination"></div>
+          <a id="support-external" class="primary" target="_blank" rel="noopener noreferrer" hidden>Open external support portal</a>
+          <p id="support-external-note" hidden>The portal opens separately. No ticket content or credentials are sent automatically.</p>
+          <details id="support-new" class="form-panel support-new"><summary>Create a support request</summary>
+          <form id="support-create">
+            <h2>Escalate an issue</h2>
+            <label>Subject<input name="subject" required maxlength="160" placeholder="Briefly describe the problem" /></label>
+            <label>Description<textarea name="body" required maxlength="8000" rows="5" placeholder="What happened, what you expected, and the steps to reproduce it"></textarea></label>
+            <p id="support-share-notice">Only the content you submit is shared with support. Never include access tokens, encryption keys or private memory you do not intend to disclose.</p>
+            <label class="check-label"><input name="consent" type="checkbox" required />I have reviewed this description and agree to share it with the support destination shown above.</label>
+            <button>Create support ticket</button>
+          </form>
+          </details>
+          <div class="workspace-actions"><button id="support-refresh" class="secondary">Refresh tickets</button><button id="support-ai" class="secondary">Prepare help for my AI client</button></div>
+          <section id="support-ai-panel" class="form-panel" hidden><h2>Continue in your own AI client</h2>
+            <p>Connect this service through MCP, then ask your client to use <code>support_help</code> and, for a selected ticket, <code>support_ai_context</code>. Your client handles inference under your own account.</p>
+            <p>Review the brief below before copying it. Copying does not send it anywhere; no built-in LLM is used.</p>
+            <textarea id="support-ai-brief" rows="8" readonly aria-label="Reviewed AI support brief"></textarea>
+            <button id="support-copy-ai" class="secondary">Copy reviewed brief</button>
+          </section>
+          <h2>Your tickets and assigned queues</h2><div id="support-tickets"></div>
+          <section id="support-detail" class="form-panel" hidden>
+            <h2 id="support-ticket-title"></h2><p id="support-ticket-meta"></p><p id="support-screening" class="notice" hidden></p><p id="support-ticket-body" class="preserve-text"></p><div id="support-replies"></div>
+            <form id="support-reply"><label>Reply<textarea name="body" required maxlength="8000" rows="4"></textarea></label>
+              <label>Status<select name="status"><option value="open">Open</option><option value="closed">Closed</option></select></label><button>Send reply</button></form>
+            <form id="support-assign" class="inline-form"><label>Assign to support user<select id="support-assignee" name="principal_id" required></select></label><button class="secondary">Assign ticket</button></form>
+          </section>
+          <section id="support-settings" class="form-panel" hidden><h2>Organisation support settings</h2>
+            <p>Choose where your users receive support. Leave the portal empty for internal support; without assigned support users, active organisation administrators handle tickets.</p>
+            <form id="support-configure">
+              <label>External support portal<input name="external_url" type="url" placeholder="https://support.example.com" maxlength="2048" /></label>
+              <label>Support users<select id="support-staff" name="support_principal_ids" multiple aria-label="Organisation support users"></select></label>
+              <p>Use Command or Ctrl to select several users. Assignment grants access to organisation tickets only.</p>
+              <button>Save organisation support</button>
+            </form>
+          </section>
         </section>
         <section id="audit-view" class="view" hidden>
           <div class="page-heading">

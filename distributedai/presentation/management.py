@@ -26,6 +26,8 @@ TTL = 1800
 COOKIE = "da_management"
 STATIC = Path(__file__).resolve().parents[1] / "static"
 OPERATIONS = {
+    "support_options", "support_configure", "support_create", "support_list", "support_get",
+    "support_reply", "support_assign", "support_ai_context",
     "instance_create", "instance_list", "connection_issue", "connection_list", "connection_revoke", "billing_status",
     "scope_policy_get", "personal_scope", "scope_move", "scope_merge", "scope_delete", "scope_owner_set", "scope_policy_set",
     "memory_export", "memory_delete", "memory_propose", "scope_backup", "organisation_backup",
@@ -55,6 +57,7 @@ class BrowserHeaders:
 
 
 def management_app(store, settings):
+    from .help import help_routes
     cipher = SessionCipher(settings.management_key.encode())
     verifier = Verifier(store, settings, purpose="management")
     cloud = CloudLogin(settings, cipher, store)
@@ -97,9 +100,14 @@ def management_app(store, settings):
 
     async def asset(request):
         name = request.path_params["name"]
-        if name not in {"app.js", "style.css", "favicon.svg", "icon-projects.svg", "icon-people.svg", "icon-reviews.svg", "icon-billing.svg", "icon-keys.svg", "icon-audit.svg"}:
+        if name not in {"app.js", "support.js", "help.js", "style.css", "favicon.svg", "icon-projects.svg", "icon-people.svg", "icon-reviews.svg", "icon-billing.svg", "icon-keys.svg", "icon-audit.svg", "icon-support.svg"}:
             return JSONResponse({"error": "Not found"}, 404)
         return FileResponse(STATIC / name)
+
+    async def support_entry(request):
+        if store.support is None:
+            return JSONResponse({"route": {"kind": "internal"}})
+        return JSONResponse(await asyncio.to_thread(store.support.public_options))
 
     async def login_options(request):
         return JSONResponse({"token": settings.login_mode in {"token", "both"},
@@ -187,10 +195,10 @@ def management_app(store, settings):
     billing_admin = billing_routes(store, settings, identity, csrf)
     from .keys import key_routes
     key_admin = key_routes(store, settings, identity, csrf) if getattr(store, "keys", None) else []
-    return BrowserHeaders(Starlette(routes=[
+    return BrowserHeaders(Starlette(routes=[*help_routes(),
         *([Route("/", page), Route("/assets/{name}", asset)] if getattr(settings, "serve_assets", True) else []),
         Route("/login", login, methods=["POST"]), Route("/logout", logout, methods=["POST"]),
-        Route("/login-options", login_options),
+        Route("/support-entry", support_entry), Route("/login-options", login_options),
         Route("/oidc/start", cloud.start), Route("/oidc/callback", cloud.finish),
         Route("/state", state), Route("/api/{operation}", action, methods=["POST"]),
     ] + key_admin + billing_admin))

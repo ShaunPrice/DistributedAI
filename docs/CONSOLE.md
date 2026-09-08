@@ -49,6 +49,14 @@ Use a credential issued by your administrator, or the organisation identity prov
 
 ![DistributedAI sign-in with an empty credential field and custom product icon](images/sign-in.png)
 
+## Help and support
+
+Select **Help** on the current page for contextual guidance, then **Escalate issue to support** if needed. **Help & support** shows the configured destination and the tickets your identity is authorised to read. Ordinary users are routed to organisation support; organisation administrators are routed to solution support. External portals open separately and require their own submission.
+
+Internal tickets share only the text you review and submit. Assigned support staff can reply and route work without receiving memory or project access. **Prepare help for my AI client** produces a reviewed brief for your own MCP-capable client; DistributedAI does not run a support LLM or send the brief automatically. See the [support guide](SUPPORT.md) for configuration, permissions and limits.
+
+![Help and support console showing the configured destination and synthetic demonstration tickets](images/support.png)
+
 ## Screenshot maintenance
 
 Capture a fresh set after material interface changes. Use a separate local database with synthetic data, the browser's normal desktop viewport, and full-page captures where needed. Never capture one-time credential panels, populated key fields, payment details or personal records. Inspect every image before committing it, preserve descriptive alt text, and keep the experimental status visible. SVG site and navigation icons are served locally; the interface does not depend on an external font or icon service.

@@ -9,6 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="/platform/assets/favicon.svg" />
     <link rel="stylesheet" href="/platform/assets/style.css" />
     <script defer src="/platform/assets/platform.js"></script>
+    <script defer src="/platform/assets/help.js"></script>
   </head>
   <body class="platform-page">
     <aside class="sidebar">
@@ -44,7 +45,7 @@
     <main>
       <div class="topbar">
         <span>PLATFORM / <strong>ACCOUNTS</strong></span
-        ><span class="edition">EXPERIMENTAL PREVIEW</span>
+        ><span class="edition">EXPERIMENTAL PREVIEW</span><button class="secondary" data-help-page="platform">Help</button>
       </div>
       <header class="page-heading">
         <div>
@@ -84,6 +85,15 @@
           Suspension blocks tenant access; resuming does not change grants.
         </p>
         <div id="accounts"></div>
+        <section class="form-panel"><h2>Solution support</h2>
+          <p>Organisation administrators are routed here. Choose an external HTTPS portal or assign existing users to the internal solution support queue.</p>
+          <form id="solution-support-form">
+            <label>External support portal<input name="external_url" type="url" maxlength="2048" placeholder="https://support.example.com" /></label>
+            <label>Solution support principal IDs<textarea name="support_principal_ids" rows="3" placeholder="One active principal ID per line"></textarea></label>
+            <p>Assigned users sign in to the management console with their own identity. They can read explicitly submitted solution tickets, not organisation memory. Leaving both settings empty leaves solution tickets awaiting a support assignment.</p>
+            <button>Save solution support</button>
+          </form>
+        </section>
       </section>
     </main>
   </body>

@@ -42,6 +42,7 @@ def configured_store(settings, *, encryption=True):
     store.platform = platform
     platform.billing = store.billing
     from .persistence.sessions import metadata as session_metadata
+    from .persistence.support import metadata as support_metadata
     original_initialize = store.initialize
     def initialize():
         original_initialize()
@@ -52,6 +53,7 @@ def configured_store(settings, *, encryption=True):
             billing_http_metadata.create_all(conn)
             encryption_metadata.create_all(conn)
             session_metadata.create_all(conn)
+            support_metadata.create_all(conn)
     store.initialize = initialize
     for method in ("authenticate", "resolve_principal"):
         original = getattr(store, method)
