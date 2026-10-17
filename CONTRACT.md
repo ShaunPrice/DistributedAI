@@ -36,6 +36,17 @@ Operations and arguments (optional defaults in parentheses):
 - `job_cancel`: job_id. Creator or reviewer only. Terminal cancellation invalidates lease; cannot undo completed job. Cooperative cancellation means no promise to stop remote execution.
 - `audit_list`: scope_id, limit (20). Admin only; metadata with actor/time/action/record ids, no tokens or private body dumps.
 
+Schema 0.2 additions (all optional for existing callers; defaults preserve previous results):
+
+- `view` (`full` default, or `compact`) on `memory_search`, `job_list`, `message_inbox`, `proposal_list`: compact entries carry 280-character previews and drill-down refs; no total size bound.
+- `memory_propose` optional `evidence` object (validated URL/dates, server content hash, screened, encrypted, reviewed with the proposal); new epistemic kind `constraint`.
+- `memory_context`: scope_id, query (""), view (`compact`), max_bytes (none; 512..1048576), limit (50, max 200), stale_after_days (180). Reader access. Constraints and divergent same-key records across the readable chain are mandatory; budget overflow of mandatory material fails with `budget_exceeded`; omissions counted by reason.
+- `memory_get`: scope_id, key, version (0 = current), stale_after_days. Reader access on the record's actual scope.
+- `attention_digest`: limit (20), since (offset ISO time). Strictly read-only; counts/IDs scoped by current grants and independent-review rules.
+- `routine_preflight` and `capability_report`: reader access; pure comparison of caller-supplied observations; no storage, probing, scheduling or job creation.
+
+See docs/CONTEXT.md and docs/UPGRADING.md.
+
 Security detector: bounded deterministic Unicode-normalized checks for instruction override, role spoofing, secret exfiltration, encoded/suspicious payloads. Explicitly imperfect heuristic; labels do not establish trust. Entire stored payloads remain untrusted, quarantine cannot be bypassed by setting a flag. No URLs fetched or commands executed.
 
 SQL persistence must enforce organisation ownership in every object lookup, parameterize searches, serialize memory review to avoid concurrent lost updates, and claim jobs using conditional update/row locks. Tests must cover cross-tenant denial, ancestor grants, sibling isolation, spoofed identity, revocation, stale proposal conflicts, self-review denial, quarantine, claim races/fencing/expiry, idempotency and message recipient isolation. Keep fixtures tokens synthetic.

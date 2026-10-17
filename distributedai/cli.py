@@ -15,6 +15,11 @@ def main():
     sub.add_parser("serve", help="Run authenticated MCP HTTP server")
     sub.add_parser("proxy", help="Adapt remote MCP to local stdio")
     sub.add_parser("init", help="Initialise database schema")
+    upgrade = sub.add_parser("upgrade", help="Detect schema version; dry run unless --apply or --rollback")
+    upgrade.add_argument("--apply", action="store_true", help="Apply the additive schema upgrade")
+    upgrade.add_argument("--rollback", action="store_true", help="Drop the 0.2 evidence table")
+    upgrade.add_argument("--confirm-backup", action="store_true", help="Confirm a verified backup exists")
+    upgrade.add_argument("--allow-evidence-loss", action="store_true", help="Permit rollback to drop evidence rows")
     migration = sub.add_parser("encrypt-existing", help="Offline conversion of pre-encryption payloads")
     migration.add_argument("--confirm-writers-stopped", action="store_true", required=True)
     boot = sub.add_parser("bootstrap", help="Provision initial organisation only on an empty database")
@@ -45,6 +50,28 @@ def main():
                            access_log=False, server_header=False,
                            proxy_headers=bool(os.getenv("TRUSTED_PROXY_IPS")),
                            forwarded_allow_ips=os.getenv("TRUSTED_PROXY_IPS", ""))
+    if args.command == "upgrade":
+        # Needs only the database URL: no master key, no service start, counts-only output.
+        from sqlalchemy import create_engine
+        from .persistence import upgrade as schema
+        if args.apply and args.rollback:
+            parser.error("choose --apply or --rollback, not both")
+        engine = create_engine(Settings.from_env().database_url, hide_parameters=True)
+        try:
+            if args.apply:
+                result = schema.apply(engine, confirm_backup=args.confirm_backup)
+            elif args.rollback:
+                result = schema.rollback(engine, confirm_backup=args.confirm_backup,
+                                         allow_evidence_loss=args.allow_evidence_loss)
+            else:
+                result = schema.plan(engine)
+        except schema.UpgradeError as exc:
+            print(json.dumps({"error": str(exc)}))
+            raise SystemExit(2) from None
+        finally:
+            engine.dispose()
+        print(json.dumps(result, indent=2))
+        return
     from .runtime import configured_store
     store = configured_store(Settings.from_env())
     if args.command == "encrypt-existing":
