@@ -16,7 +16,7 @@ The upgrade is additive. Existing ciphertext is not decrypted or re-encrypted, e
 distributedai upgrade
 ```
 
-The command needs only `DATABASE_URL` (or `DB_PASSWORD_FILE`/`DB_HOST`); it does not load the content master key. It prints JSON containing counts and names only, never content:
+The command resolves only the database configuration, with the same fallbacks as the server: `DATABASE_URL` / `DATABASE_URL_FILE`, otherwise `DB_PASSWORD` / `DB_PASSWORD_FILE` with `DB_HOST`. It never reads the content master key or any other application secret, so a missing or unreadable unrelated secret file cannot block it. Errors are reported as JSON with exit status 2 and never echo the database URL, user name or password; driver failures report only the error type. It prints JSON containing counts and names only, never content:
 
 - `current_schema`: `empty`, `0.1`, `0.2` or `unknown`. An `unknown` (partial or unexpected) schema is refused. A `memory_evidence` table counts as 0.2 only if its column types, lengths, nullability, primary key, unique `proposal_id`, `org_id`/`scope_id` indexes and tenant foreign keys all match; otherwise `problems` lists the differences.
 - `actions`: what `--apply` would do.

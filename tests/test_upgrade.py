@@ -221,3 +221,81 @@ def test_current_schema_created_by_the_model_is_recognised(old_db):
     _, engine = old_db
     upgrade.apply(engine, confirm_backup=True)
     assert upgrade.evidence_table_problems(engine) == []
+
+
+# -- the upgrade tool resolves database configuration only ----------------------------------
+
+UNRELATED_SECRETS = ("CONTENT_MASTER_KEY", "MANAGEMENT_KEY", "OIDC_SUBJECTS", "SUPPORT_DEFAULTS",
+                     "BILLING_PLAN_LIMITS", "BILLING_PRICES", "PAYMENT_PROVIDERS", "OIDC_CONNECTIONS",
+                     "KEY_PROVIDERS", "TENANT_KEY_PROVIDERS", "PLATFORM_ADMIN_TOKEN", "PLATFORM_SUBJECTS",
+                     "LOGIN_CLIENT_SECRET", "LOGIN_SUBJECTS")
+
+
+def run_cli(tmp_path, env, *arguments):
+    return subprocess.run([sys.executable, "-m", "distributedai.cli", "upgrade", *arguments], cwd=tmp_path,
+                          env={"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(ROOT), **env},
+                          capture_output=True, text=True, timeout=60)
+
+
+def test_cli_never_touches_unrelated_secret_files(old_db, tmp_path):
+    path, _ = old_db
+    locked = tmp_path / "unreadable-secret"
+    locked.write_text("synthetic-unrelated-secret")
+    locked.chmod(0)
+    env = {"DATABASE_URL": f"sqlite:///{path}"}
+    for index, name in enumerate(UNRELATED_SECRETS):
+        # Alternate unreadable and missing files: reading any of them would fail the command.
+        env[name + "_FILE"] = str(locked) if index % 2 == 0 else str(tmp_path / f"missing-{name}")
+    try:
+        if os.access(locked, os.R_OK):  # e.g. running as root: permissions cannot prove it
+            pytest.skip("file permissions are not enforced for this user")
+        preflight = run_cli(tmp_path, env)
+        assert preflight.returncode == 0, preflight.stdout + preflight.stderr
+        assert json.loads(preflight.stdout)["current_schema"] == "0.1"
+        applied = run_cli(tmp_path, env, "--apply", "--confirm-backup")
+        assert applied.returncode == 0 and json.loads(applied.stdout)["current_schema"] == "0.2"
+        assert "synthetic-unrelated-secret" not in applied.stdout + applied.stderr
+    finally:
+        locked.chmod(0o600)
+
+
+def test_database_url_fallbacks_are_preserved(tmp_path, monkeypatch):
+    from distributedai.config import Settings, database_url_from_env
+    for name in ("DATABASE_URL", "DATABASE_URL_FILE", "DB_PASSWORD", "DB_PASSWORD_FILE", "DB_HOST"):
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(ValueError, match="DATABASE_URL or DB_PASSWORD_FILE"):
+        database_url_from_env()
+    password = tmp_path / "db_password"
+    password.write_text("synthetic p@ss/word\n")
+    monkeypatch.setenv("DB_PASSWORD_FILE", str(password))
+    assert database_url_from_env() == "postgresql+psycopg://distributedai:synthetic%20p%40ss%2Fword@db:5432/distributedai"
+    monkeypatch.setenv("DB_HOST", "database.internal")
+    assert "@database.internal:5432/" in database_url_from_env()
+    url_file = tmp_path / "database_url"
+    url_file.write_text("sqlite:///synthetic.db\n")
+    monkeypatch.setenv("DATABASE_URL_FILE", str(url_file))
+    assert database_url_from_env() == "sqlite:///synthetic.db"
+    monkeypatch.delenv("DATABASE_URL_FILE")
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///direct.db")
+    assert database_url_from_env() == "sqlite:///direct.db"
+    assert Settings.from_env().database_url == "sqlite:///direct.db"  # serving path unchanged
+
+
+def test_cli_failures_never_echo_database_credentials(tmp_path):
+    secret_password = "Synthetic-Db-Password-91x"
+    unreachable = run_cli(tmp_path, {"DATABASE_URL": f"postgresql+psycopg://dbuser:{secret_password}@127.0.0.1:1/db"})
+    malformed = run_cli(tmp_path, {"DATABASE_URL": f"nosuchdriver://dbuser:{secret_password}@host/db"})
+    password_file = tmp_path / "unreadable-db-password"
+    password_file.write_text(secret_password)
+    password_file.chmod(0)
+    try:
+        unreadable = run_cli(tmp_path, {"DB_PASSWORD_FILE": str(password_file)})
+    finally:
+        password_file.chmod(0o600)
+    missing = run_cli(tmp_path, {})
+    for run in (unreachable, malformed, unreadable, missing):
+        output = run.stdout + run.stderr
+        assert run.returncode == 2, output
+        assert secret_password not in output and "dbuser" not in output and "Traceback" not in output
+        assert json.loads(run.stdout)["error"]
+    assert "DATABASE_URL or DB_PASSWORD_FILE" in json.loads(missing.stdout)["error"]

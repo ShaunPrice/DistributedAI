@@ -53,13 +53,28 @@ def main():
                            proxy_headers=bool(os.getenv("TRUSTED_PROXY_IPS")),
                            forwarded_allow_ips=os.getenv("TRUSTED_PROXY_IPS", ""))
     if args.command == "upgrade":
-        # Needs only the database URL: no master key, no service start, counts-only output.
+        # Database configuration only: no master key or other application secret is read,
+        # no service starts, and output is counts-only. Failures never echo the URL.
         from sqlalchemy import create_engine
+        from sqlalchemy.exc import SQLAlchemyError
+        from .config import database_url_from_env
         from .persistence import upgrade as schema
         if args.apply and args.rollback:
             parser.error("choose --apply or --rollback, not both")
-        engine = create_engine(Settings.from_env().database_url, hide_parameters=True)
+
+        def fail(message):
+            print(json.dumps({"error": message}))
+            raise SystemExit(2)
+
         try:
+            url = database_url_from_env()
+        except OSError:
+            fail("could not read the configured DATABASE_URL_FILE or DB_PASSWORD_FILE")
+        except ValueError as exc:
+            fail(str(exc))
+        engine = None
+        try:
+            engine = create_engine(url, hide_parameters=True)
             if args.apply:
                 result = schema.apply(engine, confirm_backup=args.confirm_backup)
             elif args.rollback:
@@ -69,10 +84,14 @@ def main():
             else:
                 result = schema.plan(engine)
         except schema.UpgradeError as exc:
-            print(json.dumps({"error": str(exc)}))
-            raise SystemExit(2) from None
+            fail(str(exc))
+        except (SQLAlchemyError, ValueError, ImportError) as exc:
+            # Driver messages can include user names, hosts or URLs; report the type only.
+            fail(f"database connection or query failed ({type(exc).__name__}); check the database "
+                 "configuration and that the database is reachable")
         finally:
-            engine.dispose()
+            if engine is not None:
+                engine.dispose()
         print(json.dumps(result, indent=2))
         return
     from .runtime import configured_store
