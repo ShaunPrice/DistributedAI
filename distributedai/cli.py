@@ -15,6 +15,13 @@ def main():
     sub.add_parser("serve", help="Run authenticated MCP HTTP server")
     sub.add_parser("proxy", help="Adapt remote MCP to local stdio")
     sub.add_parser("init", help="Initialise database schema")
+    upgrade = sub.add_parser("upgrade", help="Detect schema version; dry run unless --apply or --rollback")
+    upgrade.add_argument("--apply", action="store_true", help="Apply the additive schema upgrade")
+    upgrade.add_argument("--rollback", action="store_true", help="Drop the 0.2 evidence table")
+    upgrade.add_argument("--confirm-backup", action="store_true", help="Confirm a verified backup exists")
+    upgrade.add_argument("--allow-evidence-loss", action="store_true", help="Permit rollback to drop evidence rows")
+    upgrade.add_argument("--writers-stopped", action="store_true",
+                         help="Confirm all API replicas and workers are stopped (required for --rollback)")
     migration = sub.add_parser("encrypt-existing", help="Offline conversion of pre-encryption payloads")
     migration.add_argument("--confirm-writers-stopped", action="store_true", required=True)
     boot = sub.add_parser("bootstrap", help="Provision initial organisation only on an empty database")
@@ -45,6 +52,48 @@ def main():
                            access_log=False, server_header=False,
                            proxy_headers=bool(os.getenv("TRUSTED_PROXY_IPS")),
                            forwarded_allow_ips=os.getenv("TRUSTED_PROXY_IPS", ""))
+    if args.command == "upgrade":
+        # Database configuration only: no master key or other application secret is read,
+        # no service starts, and output is counts-only. Failures never echo the URL.
+        from sqlalchemy import create_engine
+        from sqlalchemy.exc import SQLAlchemyError
+        from .config import database_url_from_env
+        from .persistence import upgrade as schema
+        if args.apply and args.rollback:
+            parser.error("choose --apply or --rollback, not both")
+
+        def fail(message):
+            print(json.dumps({"error": message}))
+            raise SystemExit(2)
+
+        try:
+            url = database_url_from_env()
+        except OSError:
+            fail("could not read the configured DATABASE_URL_FILE or DB_PASSWORD_FILE")
+        except ValueError as exc:
+            fail(str(exc))
+        engine = None
+        try:
+            engine = create_engine(url, hide_parameters=True)
+            if args.apply:
+                result = schema.apply(engine, confirm_backup=args.confirm_backup)
+            elif args.rollback:
+                result = schema.rollback(engine, confirm_backup=args.confirm_backup,
+                                         writers_stopped=args.writers_stopped,
+                                         allow_evidence_loss=args.allow_evidence_loss)
+            else:
+                result = schema.plan(engine)
+        except schema.UpgradeError as exc:
+            fail(str(exc))
+        except (SQLAlchemyError, ValueError, ImportError) as exc:
+            # Driver messages can include user names, hosts or URLs; report the type only.
+            fail(f"database connection or query failed ({type(exc).__name__}); check the database "
+                 "configuration and that the database is reachable")
+        finally:
+            if engine is not None:
+                engine.dispose()
+        print(json.dumps(result, indent=2))
+        return
     from .runtime import configured_store
     store = configured_store(Settings.from_env())
     if args.command == "encrypt-existing":

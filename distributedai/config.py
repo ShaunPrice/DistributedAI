@@ -12,6 +12,25 @@ def secret(name: str, default: str = "") -> str:
     return Path(path).read_text().strip() if path else os.getenv(name, default)
 
 
+def database_url_from_env() -> str:
+    """Resolve only the database URL: DATABASE_URL(_FILE), else DB_PASSWORD(_FILE) + DB_HOST.
+
+    Offline database tools use this instead of Settings.from_env, so they never read the
+    content master key or any other unrelated application secret.
+    """
+    database = secret("DATABASE_URL")
+    if not database:
+        password = secret("DB_PASSWORD")
+        if not password:
+            raise ValueError("Set DATABASE_URL or DB_PASSWORD_FILE")
+        database = (
+            "postgresql+psycopg://distributedai:"
+            + quote(password, safe="")
+            + "@" + os.getenv("DB_HOST", "db") + ":5432/distributedai"
+        )
+    return database
+
+
 @dataclass
 class Settings:
     database_url: str
@@ -77,16 +96,7 @@ class Settings:
 
     @classmethod
     def from_env(cls):
-        database = secret("DATABASE_URL")
-        if not database:
-            password = secret("DB_PASSWORD")
-            if not password:
-                raise ValueError("Set DATABASE_URL or DB_PASSWORD_FILE")
-            database = (
-                "postgresql+psycopg://distributedai:"
-                + quote(password, safe="")
-                + "@" + os.getenv("DB_HOST", "db") + ":5432/distributedai"
-            )
+        database = database_url_from_env()
         public = os.getenv("PUBLIC_URL", "http://127.0.0.1:8090/mcp")
         host = urlparse(public).netloc
         return cls(

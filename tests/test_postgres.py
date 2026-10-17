@@ -188,3 +188,79 @@ def test_support_encryption_acl_and_concurrency_across_replicas(env, monkeypatch
         assert len(first_repo.list_metadata(org_id=owner.org_id)) == 2
     finally:
         other._engine.dispose()
+
+
+def test_context_attention_and_evidence_on_postgresql(env):
+    store, owner, worker, root, url = env
+    project = store.dispatch(owner, "scope_create", {"name": "ctx", "kind": "project", "parent_id": root})["scope_id"]
+    for scope_id, key, content, kind in [(root, "rule", "Synthetic rail limit", "constraint"),
+                                         (root, "bus", "Synthetic 24 V", "observation"),
+                                         (project, "bus", "Synthetic 12 V", "observation")]:
+        proposal = store.dispatch(worker, "memory_propose", {"scope_id": scope_id, "key": key, "content": content,
+            "epistemic_kind": kind, "evidence": {"source_url": "https://example.org/" + key,
+                                                 "published_at": "2026-01-01"}})
+        store.dispatch(owner, "memory_review", {"proposal_id": proposal["proposal_id"], "accept": True})
+    packet = store.dispatch(worker, "memory_context", {"scope_id": project, "max_bytes": 4096})
+    assert sorted(item["mandatory"] for item in packet["items"]) == ["conflict", "conflict", "constraint"]
+    assert packet["used_bytes"] <= 4096
+    store.dispatch(worker, "memory_propose", {"scope_id": project, "key": "pending", "content": "Synthetic pending"})
+    engine = create_engine(url)
+    def rows():
+        with engine.connect() as connection:
+            return [connection.execute(text(f'SELECT * FROM "{name}" ORDER BY 1')).all() for name in
+                    ("jobs", "memory_proposals", "memory_records", "memory_evidence", "audit_log", "messages")]
+    before = rows()
+    digest = store.dispatch(owner, "attention_digest", {})
+    assert digest["categories"]["proposals_awaiting_my_review"]["count"] == 1
+    assert rows() == before
+    engine.dispose()
+
+
+def test_upgrade_utility_on_postgresql(env):
+    from distributedai.persistence import upgrade
+    store, owner, worker, root, url = env
+    engine = create_engine(url)
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE memory_evidence"))
+    assert upgrade.detect(engine)["version"] == "0.1"
+    assert upgrade.plan(engine)["dry_run"] is True and upgrade.detect(engine)["version"] == "0.1"
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: upgrade.apply(engine, confirm_backup=True), range(2)))
+    assert sorted(result["changed"] for result in results) == [False, True]
+    assert upgrade.detect(engine)["version"] == "0.2"
+    engine.dispose()
+
+
+def test_rollback_cannot_silently_drop_evidence_written_concurrently(env):
+    """A writer that inserts evidence while rollback runs is either counted or blocks; it is
+    never dropped without --allow-evidence-loss."""
+    import time
+    from distributedai.persistence import upgrade
+    from distributedai.store import MemoryEvidence
+    store, owner, worker, root, url = env
+    engine = create_engine(url)
+    writer = engine.connect()
+    transaction = writer.begin()
+    writer.execute(MemoryEvidence.__table__.insert().values(
+        id="race0".ljust(32, "0"), org_id=owner.org_id, scope_id=root, key="k", proposal_id="p".ljust(32, "0"),
+        payload="synthetic", created_at=__import__("datetime").datetime(2026, 1, 1)))
+    outcome = {}
+
+    def roll():
+        try:
+            outcome["result"] = upgrade.rollback(engine, confirm_backup=True, writers_stopped=True,
+                                                 allow_evidence_loss=False)
+        except upgrade.UpgradeError as exc:
+            outcome["error"] = str(exc)
+
+    thread = threading.Thread(target=roll)
+    thread.start()
+    time.sleep(1.0)
+    assert thread.is_alive()  # waiting on the table lock held by the open writer
+    transaction.commit()
+    writer.close()
+    thread.join(timeout=30)
+    assert "holds 1 rows" in outcome.get("error", "")
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM memory_evidence")).scalar_one() == 1
+    engine.dispose()

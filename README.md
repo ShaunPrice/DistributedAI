@@ -75,6 +75,8 @@ The offline database operator provisions additional organisations; tenant admini
 | [Encryption](docs/ENCRYPTION.md) | AES-256-GCM and customer-managed keys; cloud KMS integration unverified |
 | [Accounts and billing](docs/BILLING.md) | Optional plans, quotas and payment adapters; live payments unverified |
 | [Operating costs](docs/COSTS.md) | Indicative assumptions and estimates, not measured unit costs |
+| [Context, evidence and attention](docs/CONTEXT.md) | Compact views, byte-bounded context, evidence freshness, review inbox, routine checks |
+| [Upgrading](docs/UPGRADING.md) | Schema detection, dry run, backup, apply and rollback |
 | [Import](docs/MIGRATION.md) | Scoped import from reviewed Cognitive-Memory exports |
 | [Validation](docs/VALIDATION.md) | Test evidence, known gaps and limitations |
 | [Access and ownership](docs/ACCESS_CONTROL.md) | Personal privacy, department administration, lifecycle and export/delete permissions |

@@ -24,6 +24,7 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    func,
     DateTime,
     ForeignKey,
     Integer,
@@ -41,7 +42,9 @@ from sqlalchemy import (
 from sqlalchemy.exc import DBAPIError, IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from .. import security
+from .. import context as context_packets
+from .. import evidence as evidence_rules
+from .. import routines, security
 
 # ---------------------------------------------------------------------------
 # Public error / principal types
@@ -72,7 +75,17 @@ ROLES = ("reader", "writer", "reviewer", "admin")
 _ROLE_RANK = {"reader": 1, "writer": 2, "reviewer": 3, "admin": 4}
 EPISTEMIC_KINDS = (
     "observation", "fact", "belief", "hypothesis", "assumption", "inference", "decision",
+    "constraint",
 )
+# Context packets always carry these kinds, whatever the query or budget.
+MANDATORY_KINDS = ("constraint",)
+VIEWS = context_packets.VIEWS
+MAX_CONTEXT_CONSTRAINTS = 500
+MAX_CONTEXT_CONFLICT_KEYS = 200
+MAX_DIGEST_SCAN = 1000
+MAX_DIGEST_SCOPES = 10000
+# Operations that read no encrypted payload; the encrypted runtime skips key provisioning.
+METADATA_ONLY_OPERATIONS = frozenset({"attention_digest", "routine_preflight", "capability_report"})
 
 JOB_MIN_LEASE = 30
 JOB_MAX_LEASE = 1800
@@ -235,6 +248,24 @@ class MemoryProposal(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class MemoryEvidence(Base):
+    """Structured provenance for one proposal (schema 0.2). ``payload`` is encrypted JSON.
+
+    ``version`` is set when the proposal is accepted, linking the evidence to the immutable
+    version (and canonical record) it describes. Rows without evidence are legacy/unknown.
+    """
+
+    __tablename__ = "memory_evidence"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    org_id: Mapped[str] = mapped_column(String(32), ForeignKey("orgs.id"), index=True)
+    scope_id: Mapped[str] = mapped_column(String(32), ForeignKey("scopes.id"), index=True)
+    key: Mapped[str] = mapped_column(String(MAX_KEY))
+    proposal_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payload: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class Message(Base):
     __tablename__ = "messages"
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -343,6 +374,21 @@ def _validate_token(token: Any) -> str:
     return token
 
 
+def _view_arg(args: dict) -> str:
+    return _enum_arg(args, "view", VIEWS, default="full")
+
+
+def _optional_text(args: dict, name: str, max_len: int) -> str | None:
+    value = args.get(name)
+    if value is None:
+        return None
+    return _str_arg(args, name, max_len=max_len)
+
+
+def _aware_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _escape_like(term: str) -> str:
     return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
@@ -361,6 +407,8 @@ _OPERATIONS = {
     "message_send", "message_inbox",
     "job_create", "job_list", "job_claim", "job_renew", "job_submit", "job_review",
     "job_cancel", "audit_list",
+    "memory_context", "memory_get", "attention_digest", "routine_preflight", "capability_report",
+    "job_get", "proposal_get", "message_get",
     "instance_create", "instance_list", "connection_issue", "connection_revoke",
     "connection_list", "billing_status",
 }
@@ -936,7 +984,7 @@ class Store:
     @staticmethod
     def _scope_has_data(sess, scope_id):
         return any(sess.execute(select(model.id).where(model.scope_id == scope_id).limit(1)).first()
-                   for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job))
+                   for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryEvidence, Message, Job))
 
     def _delete_empty_scope(self, sess, scope):
         for model in (Grant, ScopeOwnership, ScopePermission, MemoryLock):
@@ -960,7 +1008,8 @@ class Store:
             raise ServiceError("conflict", "scope contains retained memories, messages or jobs; explicit delete_contents required")
         removed = 0
         if delete_contents:
-            for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job):
+            removed += self._delete_evidence_of(sess, dbp.org_id, MemoryProposal.scope_id == scope.id)
+            for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryEvidence, Message, Job):
                 result = sess.execute(delete(model).where(model.org_id == dbp.org_id, model.scope_id == scope.id))
                 removed += result.rowcount
             if self.billing.enabled:
@@ -987,7 +1036,7 @@ class Store:
             raise ServiceError("conflict", "child scope names collide")
         def memory_keys(scope_id):
             keys = set()
-            for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryLock):
+            for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryEvidence, MemoryLock):
                 keys.update(sess.execute(select(model.key).where(model.scope_id == scope_id)).scalars())
             return keys
         if memory_keys(source.id) & memory_keys(target.id):
@@ -997,7 +1046,7 @@ class Store:
         for child in children:
             child.parent_id = target.id
         removed_grants = len(sess.execute(select(Grant.id).where(Grant.scope_id == source.id)).all())
-        for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryLock, Message, Job):
+        for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryEvidence, MemoryLock, Message, Job):
             sess.execute(update(model).where(model.scope_id == source.id).values(scope_id=target.id))
         sess.flush()
         sid = source.id
@@ -1006,6 +1055,14 @@ class Store:
         return {"source_id": sid, "target_id": target.id, "moved_children": len(children),
                 "removed_source_grants": removed_grants, "merged": True}
 
+    @staticmethod
+    def _delete_evidence_of(sess, org_id, proposal_filter) -> int:
+        """Delete evidence through its proposal as well as its own scope/key columns, so rows
+        whose scope an older server moved without them are still removed."""
+        proposal_ids = select(MemoryProposal.id).where(MemoryProposal.org_id == org_id, proposal_filter)
+        return sess.execute(delete(MemoryEvidence).where(MemoryEvidence.org_id == org_id,
+                                                         MemoryEvidence.proposal_id.in_(proposal_ids))).rowcount
+
     def _op_memory_delete(self, sess, dbp, args):
         _check_keys(args, {"scope_id", "key"})
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
@@ -1013,8 +1070,9 @@ class Store:
         if not self._permission_flags(sess, dbp, scope)["can_delete"]:
             raise ServiceError("denied", "delete permission revoked")
         key = _str_arg(args, "key", max_len=MAX_KEY)
-        removed = 0
-        for model in (MemoryRecord, MemoryVersion, MemoryProposal):
+        removed = self._delete_evidence_of(sess, dbp.org_id, (MemoryProposal.scope_id == scope.id)
+                                           & (MemoryProposal.key == key))
+        for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryEvidence):
             result = sess.execute(delete(model).where(model.org_id == dbp.org_id,
                 model.scope_id == scope.id, model.key == key))
             removed += result.rowcount
@@ -1029,7 +1087,7 @@ class Store:
     def _export_rows(self, sess, dbp, scope, *, backup):
         if backup and not hasattr(self, "crypto"):
             raise ServiceError("invalid_state", "encrypted backup requires configured encryption")
-        models = (MemoryRecord, MemoryVersion, MemoryProposal)
+        models = (MemoryRecord, MemoryVersion, MemoryProposal, MemoryEvidence)
         if backup:
             models += (Message, Job)
         datasets, size, count = {}, 0, 0
@@ -1047,7 +1105,7 @@ class Store:
                     if isinstance(item, datetime):
                         row[name] = _iso(item)
                 if backup:
-                    for field in {"content", "source", "findings", "body", "objective", "result"} & set(row):
+                    for field in {"content", "source", "findings", "body", "objective", "result", "payload"} & set(row):
                         if row[field] is not None and not row[field].startswith(self.crypto.PREFIX):
                             raise ServiceError("invalid_state", "plaintext payload cannot be backed up through this interface")
                     # Memory keys and job idempotency labels can also contain personal data.
@@ -1116,7 +1174,7 @@ class Store:
 
     def _op_memory_propose(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
         _check_keys(args, {"scope_id", "key", "content", "expected_version",
-                           "epistemic_kind", "source"})
+                           "epistemic_kind", "source", "evidence"})
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
         self._require_role(sess, dbp, scope, "writer")
         key = _str_arg(args, "key", max_len=MAX_KEY)
@@ -1124,18 +1182,36 @@ class Store:
         expected = _int_arg(args, "expected_version", default=0, lo=0, hi=1_000_000_000)
         kind = _enum_arg(args, "epistemic_kind", EPISTEMIC_KINDS, default="observation")
         source = _str_arg(args, "source", default="", max_len=MAX_SOURCE, allow_empty=True)
-        findings = security.scan_payload({"key": key, "content": content, "source": source})
-        self.billing.charge_storage(sess, dbp.org_id, sum(len(v.encode("utf-8")) for v in (content, source, json.dumps(findings))))
+        evidence = None
+        if args.get("evidence") is not None:
+            try:
+                evidence = evidence_rules.validate(args["evidence"], content=content)
+            except evidence_rules.EvidenceError as exc:
+                raise ServiceError("invalid_argument", str(exc)) from None
+        scanned = {"key": key, "content": content, "source": source}
+        if evidence is not None:
+            scanned["evidence"] = {name: value for name, value in evidence.items()
+                                   if name not in {"format", "content_sha256"}}
+        findings = security.scan_payload(scanned)
+        payload = json.dumps(evidence, separators=(",", ":")) if evidence is not None else ""
+        self.billing.charge_storage(sess, dbp.org_id, sum(len(v.encode("utf-8")) for v in (content, source, json.dumps(findings), payload)))
         proposal = MemoryProposal(
             id=_new_id(), org_id=dbp.org_id, scope_id=scope.id, key=key, content=content,
             expected_version=expected, epistemic_kind=kind, source=source,
             proposer_id=dbp.id, quarantined=bool(findings), findings=json.dumps(findings),
         )
         sess.add(proposal)
+        if evidence is not None:
+            sess.flush([proposal])
+            sess.add(MemoryEvidence(id=_new_id(), org_id=dbp.org_id, scope_id=scope.id, key=key,
+                                    proposal_id=proposal.id, payload=payload))
         self._audit(sess, dbp.org_id, dbp.id, "memory_propose",
                     record_id=proposal.id, scope_id=scope.id)
-        return {"proposal_id": proposal.id, "status": "pending",
-                "quarantined": proposal.quarantined, "findings": findings}
+        result = {"proposal_id": proposal.id, "status": "pending",
+                  "quarantined": proposal.quarantined, "findings": findings}
+        if evidence is not None:
+            result["evidence"] = evidence_rules.public(evidence)
+        return result
 
     def _acquire_memory_mutex(self, sess: Session, scope_id: str, key: str) -> None:
         """Take (creating on first use) the per (scope, key) mutex row under FOR UPDATE.
@@ -1244,16 +1320,20 @@ class Store:
                                epistemic_kind=proposal.epistemic_kind,
                                source=proposal.source, proposal_id=proposal.id,
                                created_by=proposal.proposer_id))
+        sess.execute(update(MemoryEvidence).where(MemoryEvidence.org_id == dbp.org_id,
+                                                  MemoryEvidence.proposal_id == proposal.id)
+                     .values(version=new_version))
         self._audit(sess, dbp.org_id, dbp.id, "memory_review_accept",
                     record_id=proposal.id, scope_id=scope.id)
         return {"proposal_id": proposal.id, "status": "accepted", "version": new_version}
 
     def _op_memory_search(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        _check_keys(args, {"scope_id", "query", "limit"})
+        _check_keys(args, {"scope_id", "query", "limit", "view"})
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
         self._require_role(sess, dbp, scope, "reader")
         query = _str_arg(args, "query", default="", max_len=MAX_QUERY, allow_empty=True)
         limit = _int_arg(args, "limit", default=20, lo=1, hi=100)
+        view = _view_arg(args)
         # Requested scope plus only those ancestors the principal can read — never siblings
         # or descendants implicitly.
         readable = [s.id for s in self._scope_chain(sess, scope)
@@ -1267,6 +1347,9 @@ class Store:
             stmt.order_by(MemoryRecord.updated_at.desc(), MemoryRecord.id).limit(1001)
         ).scalars().all()
         rows = [row for row in candidates[:1000] if query.casefold() in row.content.casefold()][:limit]
+        if view == "compact":
+            return {"search_truncated": len(candidates) > 1000, "view": "compact", "bounded": False,
+                    "records": [self._record_compact(r) for r in rows]}
         return {"search_truncated": len(candidates) > 1000, "records": [
             {"scope_id": r.scope_id, "key": r.key, "content": r.content,
              "version": r.version, "epistemic_kind": r.epistemic_kind, "source": r.source,
@@ -1286,30 +1369,470 @@ class Store:
                    MemoryVersion.scope_id == scope.id, MemoryVersion.key == key)
             .order_by(MemoryVersion.version.desc()).limit(MAX_HISTORY)
         ).scalars().all()
-        return {"versions": [
-            {"version": v.version, "content": v.content, "epistemic_kind": v.epistemic_kind,
-             "source": v.source, "proposal_id": v.proposal_id, "created_by": v.created_by,
-             "created_at": _iso(v.created_at), "trust": "untrusted_data"}
-            for v in rows
-        ]}
+        evidence = self._evidence_by_proposal(sess, dbp.org_id, [v.proposal_id for v in rows])
+        versions = []
+        for v in rows:
+            entry = {"version": v.version, "content": v.content, "epistemic_kind": v.epistemic_kind,
+                     "source": v.source, "proposal_id": v.proposal_id, "created_by": v.created_by,
+                     "created_at": _iso(v.created_at), "trust": "untrusted_data"}
+            if v.proposal_id in evidence:  # additive: legacy versions keep their old shape
+                entry["evidence"] = evidence_rules.public(evidence[v.proposal_id])
+            versions.append(entry)
+        return {"versions": versions}
 
     def _op_proposal_list(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        _check_keys(args, {"scope_id", "limit"})
+        _check_keys(args, {"scope_id", "limit", "view"})
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
         self._require_role(sess, dbp, scope, "reviewer")
         limit = _int_arg(args, "limit", default=20, lo=1, hi=100)
+        view = _view_arg(args)
         rows = sess.execute(
             select(MemoryProposal)
             .where(MemoryProposal.org_id == dbp.org_id, MemoryProposal.scope_id == scope.id)
             .order_by(MemoryProposal.created_at.desc()).limit(limit)
         ).scalars().all()
-        return {"proposals": [
-            {"proposal_id": p.id, "key": p.key, "content": p.content, "source": p.source,
-             "status": p.status, "quarantined": p.quarantined,
-             "findings": json.loads(p.findings), "epistemic_kind": p.epistemic_kind,
-             "proposer_id": p.proposer_id}
-            for p in rows
-        ]}
+        evidence = self._evidence_by_proposal(sess, dbp.org_id, [p.id for p in rows])
+        proposals = []
+        for p in rows:
+            findings = json.loads(p.findings)
+            if view == "compact":
+                entry = {"proposal_id": p.id, "key": p.key, **context_packets.preview(p.content),
+                         "status": p.status, "quarantined": p.quarantined,
+                         "findings_count": len(findings), "epistemic_kind": p.epistemic_kind,
+                         "proposer_id": p.proposer_id, "has_evidence": p.id in evidence,
+                         "trust": "untrusted_data"}
+            else:
+                entry = {"proposal_id": p.id, "key": p.key, "content": p.content, "source": p.source,
+                         "status": p.status, "quarantined": p.quarantined,
+                         "findings": findings, "epistemic_kind": p.epistemic_kind,
+                         "proposer_id": p.proposer_id}
+                if p.id in evidence:  # reviewers see the provenance they are approving
+                    entry["evidence"] = evidence_rules.public(evidence[p.id])
+            proposals.append(entry)
+        result = {"proposals": proposals}
+        if view == "compact":
+            result.update(view="compact", bounded=False)
+        return result
+
+    # -- compact views, evidence and bounded context -------------------------
+
+    @staticmethod
+    def _record_compact(r: MemoryRecord) -> dict:
+        return {"ref": context_packets.ref(r.scope_id, r.key, r.version),
+                "epistemic_kind": r.epistemic_kind, **context_packets.preview(r.content),
+                "updated_at": _iso(r.updated_at), "trust": "untrusted_data"}
+
+    @staticmethod
+    def _evidence_by_proposal(sess: Session, org_id: str, proposal_ids: list[str]) -> dict:
+        ids = [value for value in proposal_ids if value]
+        found = {}
+        for start in range(0, len(ids), 500):
+            rows = sess.execute(select(MemoryEvidence).where(
+                MemoryEvidence.org_id == org_id,
+                MemoryEvidence.proposal_id.in_(ids[start:start + 500]))).scalars().all()
+            for row in rows:
+                found[row.proposal_id] = json.loads(row.payload)
+        return found
+
+    @staticmethod
+    def _evidence_for_records(sess: Session, org_id: str, records: list) -> dict:
+        """Evidence keyed by (scope_id, key, version); absent means unknown provenance.
+
+        Matched through the immutable version's proposal_id, so evidence left behind by a
+        deleted key can never attach itself to a later record that reuses the key.
+        """
+        if not records:
+            return {}
+        wanted = {(r.scope_id, r.key, r.version) for r in records}
+        found = {}
+        scope_ids = sorted({r.scope_id for r in records})
+        keys = sorted({r.key for r in records})
+        for start in range(0, len(keys), 500):
+            rows = sess.execute(
+                select(MemoryEvidence, MemoryVersion.scope_id, MemoryVersion.key, MemoryVersion.version)
+                .join(MemoryVersion, (MemoryVersion.proposal_id == MemoryEvidence.proposal_id)
+                      & (MemoryVersion.org_id == MemoryEvidence.org_id))
+                .where(MemoryEvidence.org_id == org_id, MemoryVersion.scope_id.in_(scope_ids),
+                       MemoryVersion.key.in_(keys[start:start + 500]))).all()
+            for row in rows:
+                triple = (row.scope_id, row.key, row.version)
+                if triple in wanted:
+                    found[triple] = json.loads(row.MemoryEvidence.payload)
+        return found
+
+    def _readable_chain(self, sess: Session, dbp: PrincipalRow, scope: Scope) -> list[Scope]:
+        return [s for s in self._scope_chain(sess, scope) if self._role_for(sess, dbp, s) is not None]
+
+    def _op_memory_get(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Drill-down for a context/compact reference; version 0 means the current record."""
+        _check_keys(args, {"scope_id", "key", "version", "stale_after_days"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "reader")
+        key = _str_arg(args, "key", max_len=MAX_KEY)
+        version = _int_arg(args, "version", default=0, lo=0, hi=1_000_000_000)
+        stale_after = _int_arg(args, "stale_after_days", default=180, lo=1, hi=36500)
+        if version == 0:
+            row = sess.execute(select(MemoryRecord).where(
+                MemoryRecord.org_id == dbp.org_id, MemoryRecord.scope_id == scope.id,
+                MemoryRecord.key == key, MemoryRecord.active.is_(True))).scalar_one_or_none()
+            if row is None:
+                raise ServiceError("not_found", "memory record unavailable")
+            current, created_at = row.version, None
+        else:
+            row = sess.execute(select(MemoryVersion).where(
+                MemoryVersion.org_id == dbp.org_id, MemoryVersion.scope_id == scope.id,
+                MemoryVersion.key == key, MemoryVersion.version == version)).scalar_one_or_none()
+            if row is None:
+                raise ServiceError("not_found", "memory version unavailable")
+            current = sess.execute(select(MemoryRecord.version).where(
+                MemoryRecord.org_id == dbp.org_id, MemoryRecord.scope_id == scope.id,
+                MemoryRecord.key == key)).scalar_one_or_none()
+            created_at = _iso(row.created_at)
+        doc = self._evidence_for_records(sess, dbp.org_id, [row]).get((row.scope_id, row.key, row.version))
+        return {"ref": context_packets.ref(row.scope_id, row.key, row.version),
+                "is_current": current == row.version, "current_version": current,
+                "content": row.content, "epistemic_kind": row.epistemic_kind, "source": row.source,
+                "created_by": row.created_by,
+                "updated_at": _iso(row.updated_at) if version == 0 else None,
+                "created_at": created_at,
+                "evidence": evidence_rules.public(doc),
+                "freshness": evidence_rules.freshness(doc, now=_aware_now(), stale_after_days=stale_after),
+                "trust": "untrusted_data"}
+
+    def _context_item(self, r: MemoryRecord, view: str, doc: dict | None, fresh: dict,
+                      **extra) -> dict:
+        item = {"ref": context_packets.ref(r.scope_id, r.key, r.version),
+                "epistemic_kind": r.epistemic_kind}
+        if view == "compact" and "mandatory" in extra:
+            # Constraints and conflicts are never shortened: a packet that claims to carry
+            # them must carry all of their text. Too-small budgets fail instead.
+            item.update(content=r.content, chars=len(r.content), truncated=False,
+                        freshness=fresh["status"])
+            if doc and doc.get("source_url"):
+                item["source_url"] = doc["source_url"]
+        elif view == "compact":
+            item.update(context_packets.preview(r.content), freshness=fresh["status"])
+            if doc and doc.get("source_url"):
+                item["source_url"] = doc["source_url"]
+        else:
+            item.update(content=r.content, source=r.source, created_by=r.created_by,
+                        updated_at=_iso(r.updated_at), evidence=evidence_rules.public(doc),
+                        freshness=fresh)
+        item.update(extra)
+        item["trust"] = "untrusted_data"
+        return item
+
+    def _op_memory_context(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        _check_keys(args, {"scope_id", "query", "view", "max_bytes", "limit", "stale_after_days"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "reader")
+        query = _str_arg(args, "query", default="", max_len=MAX_QUERY, allow_empty=True)
+        view = _enum_arg(args, "view", VIEWS, default="compact")
+        max_bytes = args.get("max_bytes")
+        if max_bytes is not None:
+            max_bytes = _int_arg(args, "max_bytes", lo=context_packets.MIN_BUDGET,
+                                 hi=context_packets.MAX_BUDGET)
+        limit = _int_arg(args, "limit", default=50, lo=1, hi=200)
+        stale_after = _int_arg(args, "stale_after_days", default=180, lo=1, hi=36500)
+        now = _aware_now()
+        chain = self._readable_chain(sess, dbp, scope)
+        readable = [s.id for s in chain]
+        base = (MemoryRecord.org_id == dbp.org_id, MemoryRecord.scope_id.in_(readable),
+                MemoryRecord.active.is_(True))
+        # Mandatory material is selected independently of the query and the recency scan,
+        # so neither relevance nor scan truncation can drop it.
+        constraints = sess.execute(select(MemoryRecord).where(
+            *base, MemoryRecord.epistemic_kind.in_(MANDATORY_KINDS))
+            .order_by(MemoryRecord.updated_at.desc(), MemoryRecord.id)
+            .limit(MAX_CONTEXT_CONSTRAINTS + 1)).scalars().all()
+        if len(constraints) > MAX_CONTEXT_CONSTRAINTS:
+            raise ServiceError("too_large", "too many constraints for one context packet; narrow the scope")
+        shadow_keys = sess.execute(select(MemoryRecord.key).where(*base).group_by(MemoryRecord.key)
+            .having(func.count(MemoryRecord.scope_id.distinct()) > 1)
+            .order_by(MemoryRecord.key).limit(MAX_CONTEXT_CONFLICT_KEYS + 1)).scalars().all()
+        if len(shadow_keys) > MAX_CONTEXT_CONFLICT_KEYS:
+            raise ServiceError("too_large", "too many conflicting keys for one context packet")
+        depth = {s.id: index for index, s in enumerate(chain)}
+        conflicts: dict[str, dict] = {}
+        shadow_rows: dict[str, MemoryRecord] = {}
+        if shadow_keys:
+            rows = sess.execute(select(MemoryRecord).where(*base, MemoryRecord.key.in_(shadow_keys))).scalars().all()
+            groups: dict[str, list] = {}
+            for row in rows:
+                shadow_rows[row.id] = row
+                groups.setdefault(row.key, []).append(row)
+            for key, members in groups.items():
+                if len({m.content for m in members}) > 1:
+                    members.sort(key=lambda m: depth[m.scope_id])
+                    refs = [context_packets.ref(m.scope_id, m.key, m.version) for m in members]
+                    for m in members:
+                        conflicts[m.id] = {"type": "scope_divergence", "key": key, "refs": refs,
+                                           "nearest_scope_id": members[0].scope_id}
+        mandatory_rows = {r.id: r for r in constraints}
+        for row_id in conflicts:
+            mandatory_rows.setdefault(row_id, shadow_rows[row_id])
+        candidates = sess.execute(select(MemoryRecord).where(*base)
+            .order_by(MemoryRecord.updated_at.desc(), MemoryRecord.id).limit(1001)).scalars().all()
+        matches = [r for r in candidates[:1000] if r.id not in mandatory_rows
+                   and query.casefold() in r.content.casefold()]
+        selected, cut = matches[:limit], matches[limit:]
+        ordered_mandatory = sorted(mandatory_rows.values(),
+                                   key=lambda r: (r.id not in conflicts, depth[r.scope_id], r.key, r.scope_id))
+        docs = self._evidence_for_records(sess, dbp.org_id, ordered_mandatory + selected)
+        seen: dict[tuple, dict] = {}
+
+        def render(r, mandatory_reason=None):
+            doc = docs.get((r.scope_id, r.key, r.version))
+            fresh = evidence_rules.freshness(doc, now=now, stale_after_days=stale_after)
+            extra = {}
+            if mandatory_reason:
+                extra["mandatory"] = mandatory_reason
+            if r.id in conflicts:
+                extra["conflict"] = conflicts[r.id]
+            dup = evidence_rules.duplicate_key(doc)
+            if dup is not None:
+                if dup in seen:
+                    extra["duplicate_of"] = seen[dup]
+                else:
+                    seen[dup] = context_packets.ref(r.scope_id, r.key, r.version)
+            return self._context_item(r, view, doc, fresh, **extra)
+
+        mandatory_items = [render(r, "conflict" if r.id in conflicts else "constraint")
+                           for r in ordered_mandatory]
+        optional_items = [render(r) for r in selected]
+        # Exact duplicates (same source URL and content hash) are dropped first under budget.
+        optional_items.sort(key=lambda item: "duplicate_of" in item)
+        open_conflicts = self._open_conflicts(sess, dbp, chain)
+        header = {"view": view, "scope_id": scope.id, "query": query,
+                  "readable_scope_ids": readable, "search_truncated": len(candidates) > 1000,
+                  "stale_after_days": stale_after, "open_conflicts": open_conflicts}
+        try:
+            return context_packets.build_packet(
+                header, mandatory_items, optional_items, max_bytes=max_bytes,
+                limit_omitted=len(cut),
+                omitted_refs=[context_packets.ref(r.scope_id, r.key, r.version) for r in cut[:50]])
+        except context_packets.BudgetExceeded as exc:
+            raise ServiceError("budget_exceeded", f"{exc}; raise max_bytes or narrow the scope") from None
+
+    def _open_conflicts(self, sess: Session, dbp: PrincipalRow, chain: list[Scope]) -> dict:
+        """Pending proposals whose expected version is already stale, in scopes the caller
+        may review. Metadata only; proposal text stays behind proposal_list."""
+        reviewable = [s.id for s in chain
+                      if _ROLE_RANK.get(self._role_for(sess, dbp, s) or "", 0) >= _ROLE_RANK["reviewer"]]
+        out = {"count": 0, "proposals": [], "unlisted": 0, "visibility": "reviewer_scopes_only"}
+        if not reviewable:
+            return out
+        pending = sess.execute(select(MemoryProposal.id, MemoryProposal.scope_id, MemoryProposal.key,
+                                      MemoryProposal.expected_version).where(
+            MemoryProposal.org_id == dbp.org_id, MemoryProposal.scope_id.in_(reviewable),
+            MemoryProposal.status == "pending").order_by(MemoryProposal.created_at)
+            .limit(MAX_DIGEST_SCAN + 1)).all()
+        if len(pending) > MAX_DIGEST_SCAN:
+            raise ServiceError("too_large", "too many pending proposals to evaluate conflicts")
+        versions = dict(((row.scope_id, row.key), row.version) for row in sess.execute(
+            select(MemoryRecord.scope_id, MemoryRecord.key, MemoryRecord.version).where(
+                MemoryRecord.org_id == dbp.org_id, MemoryRecord.scope_id.in_(reviewable))).all())
+        stale = [p for p in pending if p.expected_version != versions.get((p.scope_id, p.key), 0)]
+        out["count"] = len(stale)
+        out["proposals"] = [{"proposal_id": p.id, "scope_id": p.scope_id, "key": p.key,
+                             "expected_version": p.expected_version,
+                             "current_version": versions.get((p.scope_id, p.key), 0)}
+                            for p in stale[:50]]
+        out["unlisted"] = max(0, len(stale) - 50)
+        return out
+
+    # -- attention digest (read-only) ----------------------------------------
+
+    def _scope_roles(self, sess: Session, dbp: PrincipalRow) -> dict[str, tuple[str, str]]:
+        """Every scope the caller currently holds a role on: {scope_id: (role, kind)}.
+
+        Computed in memory from metadata columns with exactly ``_role_for``'s rules, so
+        list queries can be restricted to authorised scopes BEFORE any limit is applied.
+        """
+        scopes = sess.execute(select(Scope.id, Scope.parent_id, Scope.kind).where(
+            Scope.org_id == dbp.org_id).limit(MAX_DIGEST_SCOPES + 1)).all()
+        if len(scopes) > MAX_DIGEST_SCOPES:
+            raise ServiceError("too_large", f"organisation exceeds {MAX_DIGEST_SCOPES} scopes")
+        owned = set(sess.execute(select(ScopeOwnership.scope_id).where(
+            ScopeOwnership.org_id == dbp.org_id, ScopeOwnership.principal_id == dbp.id)).scalars())
+        granted = dict(sess.execute(select(Grant.scope_id, Grant.role).where(
+            Grant.org_id == dbp.org_id, Grant.principal_id == dbp.id)).all())
+        parents = {row.id: row.parent_id for row in scopes}
+        roles = {}
+        for row in scopes:
+            if row.kind == "personal":
+                role = "admin" if row.id in owned else None
+            elif dbp.is_org_admin or row.id in owned:
+                role = "admin"
+            else:
+                role, current = None, row.id
+                for _ in range(101):
+                    if current is None:
+                        break
+                    if current in granted and (role is None or _ROLE_RANK[granted[current]] > _ROLE_RANK[role]):
+                        role = granted[current]
+                    current = parents.get(current)
+                else:
+                    raise ServiceError("invalid_state", "scope hierarchy too deep or cyclic")
+            if role is not None:
+                roles[row.id] = (role, row.kind)
+        return roles
+
+    def _op_attention_digest(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Counts and scoped references of work waiting for the caller. Strictly read-only: no
+        lease sweep, status transition, read-marking, audit row, personal-scope creation or
+        key provisioning. Every query is restricted to the caller's authorised scopes before
+        its scan limit, so hidden scopes neither appear nor crowd out visible work."""
+        _check_keys(args, {"limit", "since"})
+        limit = _int_arg(args, "limit", default=20, lo=1, hi=100)
+        since = None
+        if args.get("since") is not None:
+            try:
+                text_since = evidence_rules.parse_when(args["since"], "since", _aware_now())
+            except evidence_rules.EvidenceError as exc:
+                raise ServiceError("invalid_argument", str(exc)) from None
+            since = evidence_rules.moment_of(text_since).astimezone(timezone.utc).replace(tzinfo=None)
+        now = _now()
+        roles = self._scope_roles(sess, dbp)
+
+        def scopes(minimum: str, *, personal_only: bool = False) -> list[str]:
+            return sorted(scope_id for scope_id, (role, kind) in roles.items()
+                          if _ROLE_RANK[role] >= _ROLE_RANK[minimum]
+                          and (not personal_only or kind == "personal"))
+
+        readable, writer, reviewer = scopes("reader"), scopes("writer"), scopes("reviewer")
+        personal_review = scopes("reviewer", personal_only=True)
+        categories: dict[str, list[tuple[str, str]]] = {name: [] for name in (
+            "jobs_claimable", "jobs_claimed_active", "jobs_lease_expired",
+            "jobs_awaiting_my_review", "jobs_quarantined_awaiting_rejection",
+            "proposals_awaiting_my_review", "proposals_quarantined_awaiting_rejection",
+            "messages")}
+        truncated: dict[str, bool] = {}
+
+        def scan(statement, name):
+            rows = sess.execute(statement.limit(MAX_DIGEST_SCAN + 1)).all()
+            truncated[name] = len(rows) > MAX_DIGEST_SCAN
+            return rows[:MAX_DIGEST_SCAN]
+
+        # Column selects only: no encrypted payload is loaded or decrypted.
+        for job in scan(select(Job.id, Job.scope_id, Job.status, Job.attempts, Job.lease_expires_at,
+                               Job.quarantined).where(
+                Job.org_id == dbp.org_id, Job.assignee_id == dbp.id, Job.scope_id.in_(writer),
+                Job.status.in_(("queued", "claimed"))).order_by(Job.created_at, Job.id), "assigned_jobs"):
+            entry = (job.id, job.scope_id)
+            if job.status == "queued" and not job.quarantined and job.attempts < JOB_MAX_ATTEMPTS:
+                categories["jobs_claimable"].append(entry)
+            elif job.status == "claimed" and job.lease_expires_at is not None and job.lease_expires_at >= now:
+                categories["jobs_claimed_active"].append(entry)
+            elif job.status == "claimed" and job.attempts < JOB_MAX_ATTEMPTS:
+                # Computed at read time; the stored status is deliberately left unchanged.
+                categories["jobs_lease_expired"].append(entry)
+        for job in scan(select(Job.id, Job.scope_id, Job.status).where(
+                Job.org_id == dbp.org_id, Job.assignee_id != dbp.id,
+                Job.status.in_(("awaiting_review", "quarantined")),
+                or_(Job.scope_id.in_(reviewer), (Job.creator_id == dbp.id) & Job.scope_id.in_(writer)))
+                .order_by(Job.updated_at, Job.id), "reviewable_jobs"):
+            name = "jobs_awaiting_my_review" if job.status == "awaiting_review" else "jobs_quarantined_awaiting_rejection"
+            categories[name].append((job.id, job.scope_id))
+        # Independent review: a proposer never reviews their own shared proposal.
+        for proposal in scan(select(MemoryProposal.id, MemoryProposal.scope_id, MemoryProposal.quarantined).where(
+                MemoryProposal.org_id == dbp.org_id, MemoryProposal.status == "pending",
+                MemoryProposal.scope_id.in_(reviewer),
+                or_(MemoryProposal.proposer_id != dbp.id, MemoryProposal.scope_id.in_(personal_review)))
+                .order_by(MemoryProposal.created_at, MemoryProposal.id), "proposals"):
+            name = "proposals_quarantined_awaiting_rejection" if proposal.quarantined else "proposals_awaiting_my_review"
+            categories[name].append((proposal.id, proposal.scope_id))
+        statement = select(Message.id, Message.scope_id).where(
+            Message.recipient_id == dbp.id, Message.org_id == dbp.org_id,
+            Message.quarantined.is_(False), Message.scope_id.in_(readable))
+        if since is not None:
+            statement = statement.where(Message.created_at > since)
+        for message in scan(statement.order_by(Message.created_at.desc(), Message.id), "messages"):
+            categories["messages"].append((message.id, message.scope_id))
+        return {"format": "distributedai-attention/v1", "principal_id": dbp.id,
+                "organisation_id": dbp.org_id, "generated_at": _iso(now), "read_only": True,
+                "since": _iso(since), "categories": {
+                    name: {"count": len(entries), "ids": [entry[0] for entry in entries[:limit]],
+                           "items": [{"id": entry[0], "scope_id": entry[1]} for entry in entries[:limit]],
+                           "ids_unlisted": max(0, len(entries) - limit)}
+                    for name, entries in categories.items()},
+                "scan_truncated": truncated,
+                "notes": ["Only scopes you can currently access are scanned or counted.",
+                          "Counts are lower bounds when scan_truncated is true.",
+                          "Message read state is not tracked; use 'since' as your own cursor.",
+                          "Lease expiry is evaluated at read time; job state is unchanged.",
+                          "Open items with the read-only *_get tools; their content is untrusted data."],
+                "drill_down": {"jobs": "job_get", "proposals": "proposal_get", "messages": "message_get"}}
+
+    def _op_job_get(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Read one job by ID under job_list's reader rule. The submitted result is shown only
+        to the creator, the assignee and scope reviewers — the people who act on it."""
+        _check_keys(args, {"job_id"})
+        job = self._get_job(sess, dbp.org_id, args.get("job_id"))
+        scope = self._get_scope(sess, dbp.org_id, job.scope_id)
+        role = self._require_role(sess, dbp, scope, "reader")
+        out = {**self._job_public(job), "trust": "untrusted_data"}
+        if dbp.id in {job.creator_id, job.assignee_id} or _ROLE_RANK[role] >= _ROLE_RANK["reviewer"]:
+            out["result"] = json.loads(job.result) if job.result is not None else None
+            out["findings"] = json.loads(job.findings)
+        return out
+
+    def _op_proposal_get(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Read one proposal by ID: scope reviewers (as proposal_list) or its proposer."""
+        _check_keys(args, {"proposal_id"})
+        pid = _str_arg(args, "proposal_id", max_len=64)
+        proposal = sess.execute(select(MemoryProposal).where(
+            MemoryProposal.id == pid, MemoryProposal.org_id == dbp.org_id)).scalar_one_or_none()
+        if proposal is None:
+            raise ServiceError("not_found", "proposal not found in this organisation")
+        scope = self._get_scope(sess, dbp.org_id, proposal.scope_id)
+        if proposal.proposer_id == dbp.id:
+            self._require_role(sess, dbp, scope, "reader")
+        else:
+            self._require_role(sess, dbp, scope, "reviewer")
+        evidence = self._evidence_by_proposal(sess, dbp.org_id, [proposal.id])
+        return {"proposal_id": proposal.id, "scope_id": proposal.scope_id, "key": proposal.key,
+                "content": proposal.content, "source": proposal.source, "status": proposal.status,
+                "quarantined": proposal.quarantined, "findings": json.loads(proposal.findings),
+                "epistemic_kind": proposal.epistemic_kind, "expected_version": proposal.expected_version,
+                "proposer_id": proposal.proposer_id, "created_at": _iso(proposal.created_at),
+                "evidence": evidence_rules.public(evidence.get(proposal.id)), "trust": "untrusted_data"}
+
+    def _op_message_get(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Read one of your messages by ID under message_inbox's rules (recipient only, not
+        quarantined, scope still readable). Every refusal is the same not_found."""
+        _check_keys(args, {"message_id"})
+        mid = _str_arg(args, "message_id", max_len=64)
+        message = sess.execute(select(Message).where(
+            Message.id == mid, Message.org_id == dbp.org_id, Message.recipient_id == dbp.id,
+            Message.quarantined.is_(False))).scalar_one_or_none()
+        scope = sess.get(Scope, message.scope_id) if message is not None else None
+        if scope is None or self._role_for(sess, dbp, scope) is None:
+            raise ServiceError("not_found", "message unavailable")
+        return {"message_id": message.id, "scope_id": message.scope_id, "sender_id": message.sender_id,
+                "body": message.body, "created_at": _iso(message.created_at), "trust": "untrusted_data"}
+
+    # -- routine preflight and capability reports (pure, read-only) -----------
+
+    def _op_routine_preflight(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        _check_keys(args, {"scope_id", "routine", "run_key", "observations", "previous"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "reader")
+        try:
+            return routines.preflight(scope.id, args.get("routine"), args.get("run_key"),
+                                      args.get("observations"), args.get("previous"))
+        except ValueError as exc:
+            raise ServiceError("invalid_argument", str(exc)) from None
+
+    def _op_capability_report(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        _check_keys(args, {"scope_id", "current", "previous", "previous_evaluated_at"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "reader")
+        try:
+            return routines.capability_report(scope.id, args.get("current"), args.get("previous"),
+                                              _aware_now(), args.get("previous_evaluated_at"))
+        except ValueError as exc:
+            raise ServiceError("invalid_argument", str(exc)) from None
 
     # -- messaging -----------------------------------------------------------
 
@@ -1339,8 +1862,9 @@ class Store:
         return {"message_id": message.id, "quarantined": message.quarantined}
 
     def _op_message_inbox(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        _check_keys(args, {"limit"})
+        _check_keys(args, {"limit", "view"})
         limit = _int_arg(args, "limit", default=20, lo=1, hi=100)
+        view = _view_arg(args)
         rows = sess.execute(
             select(Message)
             .where(Message.recipient_id == dbp.id, Message.org_id == dbp.org_id,
@@ -1353,11 +1877,14 @@ class Store:
             # Re-check CURRENT grants at read time; access revoked since delivery hides mail.
             if scope is None or self._role_for(sess, dbp, scope) is None:
                 continue
+            body = context_packets.preview(m.body) if view == "compact" else {"body": m.body}
             out.append({"message_id": m.id, "scope_id": m.scope_id, "sender_id": m.sender_id,
-                        "body": m.body, "created_at": _iso(m.created_at),
+                        **body, "created_at": _iso(m.created_at),
                         "trust": "untrusted_data"})
             if len(out) >= limit:
                 break
+        if view == "compact":
+            return {"messages": out, "view": "compact", "bounded": False}
         return {"messages": out}
 
     # -- jobs ---------------------------------------------------------------
@@ -1423,14 +1950,22 @@ class Store:
                 "idempotent_replay": False}
 
     def _op_job_list(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        _check_keys(args, {"scope_id", "limit"})
+        _check_keys(args, {"scope_id", "limit", "view"})
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
         self._require_role(sess, dbp, scope, "reader")
         limit = _int_arg(args, "limit", default=20, lo=1, hi=100)
+        view = _view_arg(args)
         rows = sess.execute(
             select(Job).where(Job.org_id == dbp.org_id, Job.scope_id == scope.id)
             .order_by(Job.created_at.desc()).limit(limit)
         ).scalars().all()
+        if view == "compact":
+            jobs = []
+            for job in rows:
+                entry = self._job_public(job)
+                entry.update(context_packets.preview(entry.pop("objective")), trust="untrusted_data")
+                jobs.append(entry)
+            return {"jobs": jobs, "view": "compact", "bounded": False}
         return {"jobs": [self._job_public(j) for j in rows]}
 
     def _op_job_claim(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:

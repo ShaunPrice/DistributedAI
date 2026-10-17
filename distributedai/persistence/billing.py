@@ -342,9 +342,10 @@ class BillingEngine:
 
     @staticmethod
     def _storage_size(sess: Session, org_id: str) -> int:
-        from .workspace import Job, MemoryProposal, MemoryVersion, Message
+        from .workspace import Job, MemoryEvidence, MemoryProposal, MemoryVersion, Message
         total = 0
         for table, fields in ((MemoryProposal, ("content", "source", "findings")),
+                              (MemoryEvidence, ("payload",)),
                               (MemoryVersion, ("content", "source")),
                               (Message, ("body", "findings")),
                               (Job, ("objective", "result", "findings"))):
