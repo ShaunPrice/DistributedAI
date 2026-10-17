@@ -11,7 +11,7 @@ Shared memory and coordination for people and AI tools, with explicit organisati
 
 DistributedAI brings the proposal/review and leased-job patterns from Cognitive-Memory into an independent, portable service. Multiple Claude, ChatGPT, Codex, Hermes, OpenClaw, Perplexity, or other MCP clients can collaborate against one shared store. Each user or client instance has its own identity. A project code identifies the shared workspace; an administrator's access assignment authorises its use.
 
-**Initial implementation, private repository.** Client compatibility depends on the client's MCP transport, authentication support, account plan and workspace policies. See [client setup](docs/CLIENTS.md) and [validation](docs/VALIDATION.md) for the distinction between tested behaviour and integration targets.
+**Initial implementation, public repository.** Client compatibility depends on the client's MCP transport, authentication support, account plan and workspace policies. See [client setup](docs/CLIENTS.md) and [validation](docs/VALIDATION.md) for the distinction between tested behaviour and integration targets.
 
 ## Included
 
@@ -113,4 +113,4 @@ Each identity has private memory alongside its assigned projects. Administrators
 
 The server under `distributedai/` (including its management UI) is licensed **AGPL-3.0-only**, except the standalone `distributedai/proxy.py` client adapter, which is **Apache-2.0**. The remaining original repository material—deployment templates, scripts, tests and documentation—is Apache-2.0. Third-party components retain their own licences. See [licensing boundaries](docs/LICENSING.md), [dependency audit](docs/DEPENDENCY_LICENSES.md), [server licence](LICENSE) and [Apache licence](LICENSE-APACHE-2.0).
 
-Hosted modified server deployments must provide their interacting users access to the corresponding source under AGPL. The repository is currently private; a public deployment must separately arrange source access or make the appropriate source public. Changing a future release's licence does not revoke earlier grants.
+Hosted modified server deployments must provide their interacting users access to the corresponding source under AGPL. This repository is public; deployments must provide access to the corresponding source for the exact deployed version, including any modifications. Changing a future release's licence does not revoke earlier grants.
