@@ -40,10 +40,11 @@ Schema 0.2 additions (all optional for existing callers; defaults preserve previ
 
 - `view` (`full` default, or `compact`) on `memory_search`, `job_list`, `message_inbox`, `proposal_list`: compact entries carry 280-character previews and drill-down refs; no total size bound.
 - `memory_propose` optional `evidence` object (validated URL/dates, server content hash, screened, encrypted, reviewed with the proposal); new epistemic kind `constraint`.
-- `memory_context`: scope_id, query (""), view (`compact`), max_bytes (none; 512..1048576), limit (50, max 200), stale_after_days (180). Reader access. Constraints and divergent same-key records across the readable chain are mandatory; budget overflow of mandatory material fails with `budget_exceeded`; omissions counted by reason.
+- `memory_context`: scope_id, query (""), view (`compact`), max_bytes (none; 512..1048576), limit (50, max 200), stale_after_days (180). Reader access. Constraints and divergent same-key records across the readable chain are mandatory and always returned in full; budget overflow of mandatory material fails with `budget_exceeded`; omissions counted by reason.
 - `memory_get`: scope_id, key, version (0 = current), stale_after_days. Reader access on the record's actual scope.
-- `attention_digest`: limit (20), since (offset ISO time). Strictly read-only; counts/IDs scoped by current grants and independent-review rules.
-- `routine_preflight` and `capability_report`: reader access; pure comparison of caller-supplied observations; no storage, probing, scheduling or job creation.
+- `attention_digest`: limit (20), since (offset ISO time). Strictly read-only (no key provisioning); queries restricted to currently authorised scopes before scan limits; counts, IDs and `{id, scope_id}` items follow independent-review rules.
+- `job_get` (job_id), `proposal_get` (proposal_id), `message_get` (message_id): read-only drill-down under the existing job_list / proposal_list (or proposer) / message_inbox rules; job results only for creator, assignee or reviewers.
+- `routine_preflight` and `capability_report` (previous observations require `previous_evaluated_at`): reader access; pure comparison of caller-supplied observations; no storage, probing, scheduling or job creation.
 
 See docs/CONTEXT.md and docs/UPGRADING.md.
 

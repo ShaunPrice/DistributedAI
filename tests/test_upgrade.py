@@ -120,18 +120,20 @@ def test_rollback_guards_evidence_and_upgrade_prunes_orphans(old_db):
                                               "evidence": {"title": "Synthetic source"}})
     store._engine.dispose()
     with pytest.raises(upgrade.UpgradeError):
-        upgrade.rollback(engine, confirm_backup=True, allow_evidence_loss=False)
+        upgrade.rollback(engine, confirm_backup=True, writers_stopped=True, allow_evidence_loss=False)
     with pytest.raises(upgrade.UpgradeError):
-        upgrade.rollback(engine, confirm_backup=False, allow_evidence_loss=True)
+        upgrade.rollback(engine, confirm_backup=False, writers_stopped=True, allow_evidence_loss=True)
+    with pytest.raises(upgrade.UpgradeError, match="writers-stopped"):
+        upgrade.rollback(engine, confirm_backup=True, writers_stopped=False, allow_evidence_loss=True)
     # Simulate an older server deleting the key after a code-only rollback: it never knew
     # about memory_evidence, so the evidence row is orphaned.
     with engine.begin() as conn:
         conn.execute(MemoryProposal.__table__.delete().where(MemoryProposal.__table__.c.key == "draft"))
     assert upgrade.plan(engine)["counts"]["orphan_evidence_rows"] == 1
     assert upgrade.apply(engine, confirm_backup=True)["pruned_orphan_evidence_rows"] == 1
-    result = upgrade.rollback(engine, confirm_backup=True, allow_evidence_loss=False)
+    result = upgrade.rollback(engine, confirm_backup=True, writers_stopped=True, allow_evidence_loss=False)
     assert result["current_schema"] == "0.1" and result["dropped_evidence_rows"] == 0
-    assert upgrade.rollback(engine, confirm_backup=True, allow_evidence_loss=False)["changed"] is False
+    assert upgrade.rollback(engine, confirm_backup=True, writers_stopped=True, allow_evidence_loss=False)["changed"] is False
     assert upgrade.apply(engine, confirm_backup=True)["current_schema"] == "0.2"
 
 
@@ -172,3 +174,50 @@ def test_context_ops_fail_cleanly_for_unknown_scope(old_db):
     with pytest.raises(ServiceError):
         store.dispatch(store.authenticate(WRITER), "memory_context", {"scope_id": "missing"})
     store._engine.dispose()
+
+
+MALFORMED = {
+    "missing unique proposal link": "CREATE TABLE memory_evidence (id VARCHAR(32) PRIMARY KEY, "
+        "org_id VARCHAR(32) NOT NULL REFERENCES orgs(id), scope_id VARCHAR(32) NOT NULL REFERENCES scopes(id), "
+        "key VARCHAR(200) NOT NULL, proposal_id VARCHAR(32) NOT NULL, version INTEGER, payload TEXT NOT NULL, "
+        "created_at DATETIME NOT NULL)",
+    "wrong types": "CREATE TABLE memory_evidence (id VARCHAR(32) PRIMARY KEY, org_id VARCHAR(32) NOT NULL, "
+        "scope_id VARCHAR(32) NOT NULL, key VARCHAR(200) NOT NULL, proposal_id VARCHAR(32) NOT NULL UNIQUE, "
+        "version TEXT, payload INTEGER NOT NULL, created_at DATETIME NOT NULL)",
+    "nullable payload": "CREATE TABLE memory_evidence (id VARCHAR(32) PRIMARY KEY, org_id VARCHAR(32) NOT NULL, "
+        "scope_id VARCHAR(32) NOT NULL, key VARCHAR(200) NOT NULL, proposal_id VARCHAR(32) NOT NULL UNIQUE, "
+        "version INTEGER, payload TEXT, created_at DATETIME NOT NULL)",
+    "short key": "CREATE TABLE memory_evidence (id VARCHAR(32) PRIMARY KEY, org_id VARCHAR(32) NOT NULL, "
+        "scope_id VARCHAR(32) NOT NULL, key VARCHAR(10) NOT NULL, proposal_id VARCHAR(32) NOT NULL UNIQUE, "
+        "version INTEGER, payload TEXT NOT NULL, created_at DATETIME NOT NULL)",
+}
+
+
+@pytest.mark.parametrize("name", sorted(MALFORMED))
+def test_malformed_evidence_table_is_unknown_and_recoverable(old_db, name):
+    path, engine = old_db
+    with engine.begin() as conn:
+        conn.exec_driver_sql(MALFORMED[name])
+        conn.exec_driver_sql("INSERT INTO memory_evidence (id, org_id, scope_id, key, proposal_id, version, "
+                             "payload, created_at) SELECT 'e1', id, id, 'k', 'p1', 1, 9, '2026-01-01' FROM orgs LIMIT 1")
+    detected = upgrade.detect(engine)
+    assert detected["version"] == "unknown" and detected["problems"]
+    for action in (lambda: upgrade.apply(engine, confirm_backup=True),
+                   lambda: upgrade.rollback(engine, confirm_backup=True, writers_stopped=True,
+                                            allow_evidence_loss=True)):
+        with pytest.raises(upgrade.UpgradeError):
+            action()
+    with engine.connect() as conn:  # refused actions left the unknown table and its row intact
+        assert conn.exec_driver_sql("SELECT count(*) FROM memory_evidence").scalar_one() == 1
+    # Documented recovery: preserve the unexpected table under another name, then apply.
+    with engine.begin() as conn:
+        conn.exec_driver_sql("ALTER TABLE memory_evidence RENAME TO memory_evidence_unrecognised")
+    assert upgrade.apply(engine, confirm_backup=True)["current_schema"] == "0.2"
+    with engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT count(*) FROM memory_evidence_unrecognised").scalar_one() == 1
+
+
+def test_current_schema_created_by_the_model_is_recognised(old_db):
+    _, engine = old_db
+    upgrade.apply(engine, confirm_backup=True)
+    assert upgrade.evidence_table_problems(engine) == []

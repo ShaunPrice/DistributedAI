@@ -18,7 +18,7 @@ distributedai upgrade
 
 The command needs only `DATABASE_URL` (or `DB_PASSWORD_FILE`/`DB_HOST`); it does not load the content master key. It prints JSON containing counts and names only, never content:
 
-- `current_schema`: `empty`, `0.1`, `0.2` or `unknown`. An `unknown` (partial or unexpected) schema is refused.
+- `current_schema`: `empty`, `0.1`, `0.2` or `unknown`. An `unknown` (partial or unexpected) schema is refused. A `memory_evidence` table counts as 0.2 only if its column types, lengths, nullability, primary key, unique `proposal_id`, `org_id`/`scope_id` indexes and tenant foreign keys all match; otherwise `problems` lists the differences.
 - `actions`: what `--apply` would do.
 - `counts`: encrypted/plaintext payload field counts, evidence rows, unencrypted evidence rows and orphaned evidence rows.
 - `warnings`: e.g. plaintext payloads, which require the existing offline `distributedai encrypt-existing` step before serving.
@@ -46,7 +46,8 @@ The change runs in one transaction under the same PostgreSQL advisory lock used 
 ## Rollback and recovery
 
 - **Code-only rollback (preferred):** deploy the previous version. It ignores `memory_evidence`. Any evidence for keys deleted while the old code runs is left behind; re-running `distributedai upgrade --apply --confirm-backup` after returning to 0.2 removes it, and the new code never attaches such rows to a later record that reuses a key.
-- **Schema rollback to 0.1:** `distributedai upgrade --rollback --confirm-backup` drops `memory_evidence`. It refuses while evidence rows exist unless `--allow-evidence-loss` is also given. Running it on 0.1 changes nothing.
+- **Schema rollback to 0.1:** stop every API replica and worker, then run `distributedai upgrade --rollback --confirm-backup --writers-stopped`. It drops `memory_evidence`, and refuses while evidence rows exist unless `--allow-evidence-loss` is also given. The tool cannot verify that writers are stopped; `--writers-stopped` is your acknowledgement. As a safety net on PostgreSQL the row count and the drop happen in one transaction under an `ACCESS EXCLUSIVE` lock on the table, so a row written by a still-running writer is counted (and blocks the drop) rather than silently lost. Running it on 0.1 changes nothing.
+- **Unrecognised `memory_evidence` table:** apply and rollback both refuse and leave it untouched. Inspect it, keep its data by renaming it (for example `ALTER TABLE memory_evidence RENAME TO memory_evidence_unrecognised`) or restore from backup, then run the preflight and apply again.
 - **Failed upgrade:** the transaction rolls back automatically. If the database is in doubt, restore the pre-upgrade backup into a new empty database (see [backup and recovery](BACKUP_RECOVERY.md)), verify, then switch traffic.
 
 ## Client compatibility
@@ -55,4 +56,4 @@ Old MCP clients need no change. New outputs are opt-in (`view`, `memory_context`
 
 ## Validation
 
-The upgrade tests start from `tests/fixtures/schema-0.1-synthetic.sql`, produced by released commit `fec5178` with fictional names, synthetic tokens and a test-only key-encryption key. They cover detection, the dry run, backup confirmation, idempotent apply, unchanged ciphertext, unknown legacy provenance, encrypted new evidence, rollback guards and orphan pruning; the PostgreSQL suite repeats detection and concurrent apply. These are not tests of your production data. Rehearse against a restored copy before upgrading a live installation.
+The upgrade tests start from `tests/fixtures/schema-0.1-synthetic.sql`, produced by released commit `fec5178` with fictional names, synthetic tokens and a test-only key-encryption key. They cover detection, structurally malformed evidence tables and their recovery, the dry run, backup confirmation, idempotent apply, unchanged ciphertext, unknown legacy provenance, encrypted new evidence, rollback guards (backup, writers-stopped, evidence loss) and orphan pruning; the PostgreSQL suite repeats detection and concurrent apply and shows that evidence written during a rollback is counted rather than dropped. These are not tests of your production data. Rehearse against a restored copy before upgrading a live installation.

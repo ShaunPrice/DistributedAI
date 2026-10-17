@@ -83,6 +83,9 @@ VIEWS = context_packets.VIEWS
 MAX_CONTEXT_CONSTRAINTS = 500
 MAX_CONTEXT_CONFLICT_KEYS = 200
 MAX_DIGEST_SCAN = 1000
+MAX_DIGEST_SCOPES = 10000
+# Operations that read no encrypted payload; the encrypted runtime skips key provisioning.
+METADATA_ONLY_OPERATIONS = frozenset({"attention_digest", "routine_preflight", "capability_report"})
 
 JOB_MIN_LEASE = 30
 JOB_MAX_LEASE = 1800
@@ -405,6 +408,7 @@ _OPERATIONS = {
     "job_create", "job_list", "job_claim", "job_renew", "job_submit", "job_review",
     "job_cancel", "audit_list",
     "memory_context", "memory_get", "attention_digest", "routine_preflight", "capability_report",
+    "job_get", "proposal_get", "message_get",
     "instance_create", "instance_list", "connection_issue", "connection_revoke",
     "connection_list", "billing_status",
 }
@@ -1499,7 +1503,14 @@ class Store:
                       **extra) -> dict:
         item = {"ref": context_packets.ref(r.scope_id, r.key, r.version),
                 "epistemic_kind": r.epistemic_kind}
-        if view == "compact":
+        if view == "compact" and "mandatory" in extra:
+            # Constraints and conflicts are never shortened: a packet that claims to carry
+            # them must carry all of their text. Too-small budgets fail instead.
+            item.update(content=r.content, chars=len(r.content), truncated=False,
+                        freshness=fresh["status"])
+            if doc and doc.get("source_url"):
+                item["source_url"] = doc["source_url"]
+        elif view == "compact":
             item.update(context_packets.preview(r.content), freshness=fresh["status"])
             if doc and doc.get("source_url"):
                 item["source_url"] = doc["source_url"]
@@ -1632,9 +1643,46 @@ class Store:
 
     # -- attention digest (read-only) ----------------------------------------
 
+    def _scope_roles(self, sess: Session, dbp: PrincipalRow) -> dict[str, tuple[str, str]]:
+        """Every scope the caller currently holds a role on: {scope_id: (role, kind)}.
+
+        Computed in memory from metadata columns with exactly ``_role_for``'s rules, so
+        list queries can be restricted to authorised scopes BEFORE any limit is applied.
+        """
+        scopes = sess.execute(select(Scope.id, Scope.parent_id, Scope.kind).where(
+            Scope.org_id == dbp.org_id).limit(MAX_DIGEST_SCOPES + 1)).all()
+        if len(scopes) > MAX_DIGEST_SCOPES:
+            raise ServiceError("too_large", f"organisation exceeds {MAX_DIGEST_SCOPES} scopes")
+        owned = set(sess.execute(select(ScopeOwnership.scope_id).where(
+            ScopeOwnership.org_id == dbp.org_id, ScopeOwnership.principal_id == dbp.id)).scalars())
+        granted = dict(sess.execute(select(Grant.scope_id, Grant.role).where(
+            Grant.org_id == dbp.org_id, Grant.principal_id == dbp.id)).all())
+        parents = {row.id: row.parent_id for row in scopes}
+        roles = {}
+        for row in scopes:
+            if row.kind == "personal":
+                role = "admin" if row.id in owned else None
+            elif dbp.is_org_admin or row.id in owned:
+                role = "admin"
+            else:
+                role, current = None, row.id
+                for _ in range(101):
+                    if current is None:
+                        break
+                    if current in granted and (role is None or _ROLE_RANK[granted[current]] > _ROLE_RANK[role]):
+                        role = granted[current]
+                    current = parents.get(current)
+                else:
+                    raise ServiceError("invalid_state", "scope hierarchy too deep or cyclic")
+            if role is not None:
+                roles[row.id] = (role, row.kind)
+        return roles
+
     def _op_attention_digest(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        """Counts and IDs of work waiting for the caller. Strictly read-only: no lease sweep,
-        no status transition, no read-marking, no audit row, no personal-scope creation."""
+        """Counts and scoped references of work waiting for the caller. Strictly read-only: no
+        lease sweep, status transition, read-marking, audit row, personal-scope creation or
+        key provisioning. Every query is restricted to the caller's authorised scopes before
+        its scan limit, so hidden scopes neither appear nor crowd out visible work."""
         _check_keys(args, {"limit", "since"})
         limit = _int_arg(args, "limit", default=20, lo=1, hi=100)
         since = None
@@ -1645,94 +1693,124 @@ class Store:
                 raise ServiceError("invalid_argument", str(exc)) from None
             since = evidence_rules.moment_of(text_since).astimezone(timezone.utc).replace(tzinfo=None)
         now = _now()
-        roles: dict[str, str | None] = {}
+        roles = self._scope_roles(sess, dbp)
 
-        def role(scope_id: str) -> str | None:
-            if scope_id not in roles:
-                scope = sess.execute(select(Scope).where(Scope.id == scope_id,
-                                                         Scope.org_id == dbp.org_id)).scalar_one_or_none()
-                roles[scope_id] = self._role_for(sess, dbp, scope) if scope is not None else None
-            return roles[scope_id]
+        def scopes(minimum: str, *, personal_only: bool = False) -> list[str]:
+            return sorted(scope_id for scope_id, (role, kind) in roles.items()
+                          if _ROLE_RANK[role] >= _ROLE_RANK[minimum]
+                          and (not personal_only or kind == "personal"))
 
-        def at_least(scope_id: str, minimum: str) -> bool:
-            current = role(scope_id)
-            return current is not None and _ROLE_RANK[current] >= _ROLE_RANK[minimum]
-
-        categories: dict[str, list[str]] = {name: [] for name in (
+        readable, writer, reviewer = scopes("reader"), scopes("writer"), scopes("reviewer")
+        personal_review = scopes("reviewer", personal_only=True)
+        categories: dict[str, list[tuple[str, str]]] = {name: [] for name in (
             "jobs_claimable", "jobs_claimed_active", "jobs_lease_expired",
             "jobs_awaiting_my_review", "jobs_quarantined_awaiting_rejection",
             "proposals_awaiting_my_review", "proposals_quarantined_awaiting_rejection",
             "messages")}
         truncated: dict[str, bool] = {}
+
+        def scan(statement, name):
+            rows = sess.execute(statement.limit(MAX_DIGEST_SCAN + 1)).all()
+            truncated[name] = len(rows) > MAX_DIGEST_SCAN
+            return rows[:MAX_DIGEST_SCAN]
+
         # Column selects only: no encrypted payload is loaded or decrypted.
-        mine = sess.execute(select(Job.id, Job.scope_id, Job.status, Job.attempts, Job.lease_expires_at,
-                                   Job.quarantined).where(
-            Job.org_id == dbp.org_id, Job.assignee_id == dbp.id,
-            Job.status.in_(("queued", "claimed"))).order_by(Job.created_at, Job.id)
-            .limit(MAX_DIGEST_SCAN + 1)).all()
-        truncated["assigned_jobs"] = len(mine) > MAX_DIGEST_SCAN
-        for job in mine[:MAX_DIGEST_SCAN]:
-            if not at_least(job.scope_id, "writer"):
-                continue  # claiming would be denied; do not advertise it
+        for job in scan(select(Job.id, Job.scope_id, Job.status, Job.attempts, Job.lease_expires_at,
+                               Job.quarantined).where(
+                Job.org_id == dbp.org_id, Job.assignee_id == dbp.id, Job.scope_id.in_(writer),
+                Job.status.in_(("queued", "claimed"))).order_by(Job.created_at, Job.id), "assigned_jobs"):
+            entry = (job.id, job.scope_id)
             if job.status == "queued" and not job.quarantined and job.attempts < JOB_MAX_ATTEMPTS:
-                categories["jobs_claimable"].append(job.id)
+                categories["jobs_claimable"].append(entry)
             elif job.status == "claimed" and job.lease_expires_at is not None and job.lease_expires_at >= now:
-                categories["jobs_claimed_active"].append(job.id)
+                categories["jobs_claimed_active"].append(entry)
             elif job.status == "claimed" and job.attempts < JOB_MAX_ATTEMPTS:
                 # Computed at read time; the stored status is deliberately left unchanged.
-                categories["jobs_lease_expired"].append(job.id)
-        reviewable = sess.execute(select(Job.id, Job.scope_id, Job.status, Job.creator_id).where(
-            Job.org_id == dbp.org_id, Job.assignee_id != dbp.id,
-            Job.status.in_(("awaiting_review", "quarantined"))).order_by(Job.updated_at, Job.id)
-            .limit(MAX_DIGEST_SCAN + 1)).all()
-        truncated["reviewable_jobs"] = len(reviewable) > MAX_DIGEST_SCAN
-        for job in reviewable[:MAX_DIGEST_SCAN]:
-            if not ((job.creator_id == dbp.id and at_least(job.scope_id, "writer"))
-                    or at_least(job.scope_id, "reviewer")):
-                continue
+                categories["jobs_lease_expired"].append(entry)
+        for job in scan(select(Job.id, Job.scope_id, Job.status).where(
+                Job.org_id == dbp.org_id, Job.assignee_id != dbp.id,
+                Job.status.in_(("awaiting_review", "quarantined")),
+                or_(Job.scope_id.in_(reviewer), (Job.creator_id == dbp.id) & Job.scope_id.in_(writer)))
+                .order_by(Job.updated_at, Job.id), "reviewable_jobs"):
             name = "jobs_awaiting_my_review" if job.status == "awaiting_review" else "jobs_quarantined_awaiting_rejection"
-            categories[name].append(job.id)
-        proposals = sess.execute(select(MemoryProposal.id, MemoryProposal.scope_id,
-                                        MemoryProposal.proposer_id, MemoryProposal.quarantined).where(
-            MemoryProposal.org_id == dbp.org_id, MemoryProposal.status == "pending")
-            .order_by(MemoryProposal.created_at, MemoryProposal.id).limit(MAX_DIGEST_SCAN + 1)).all()
-        truncated["proposals"] = len(proposals) > MAX_DIGEST_SCAN
-        kinds: dict[str, str] = {}
-        for proposal in proposals[:MAX_DIGEST_SCAN]:
-            if not at_least(proposal.scope_id, "reviewer"):
-                continue
-            if proposal.scope_id not in kinds:
-                kinds[proposal.scope_id] = sess.execute(select(Scope.kind).where(
-                    Scope.id == proposal.scope_id)).scalar_one()
-            # Independent review: a proposer never reviews their own shared proposal.
-            if proposal.proposer_id == dbp.id and kinds[proposal.scope_id] != "personal":
-                continue
+            categories[name].append((job.id, job.scope_id))
+        # Independent review: a proposer never reviews their own shared proposal.
+        for proposal in scan(select(MemoryProposal.id, MemoryProposal.scope_id, MemoryProposal.quarantined).where(
+                MemoryProposal.org_id == dbp.org_id, MemoryProposal.status == "pending",
+                MemoryProposal.scope_id.in_(reviewer),
+                or_(MemoryProposal.proposer_id != dbp.id, MemoryProposal.scope_id.in_(personal_review)))
+                .order_by(MemoryProposal.created_at, MemoryProposal.id), "proposals"):
             name = "proposals_quarantined_awaiting_rejection" if proposal.quarantined else "proposals_awaiting_my_review"
-            categories[name].append(proposal.id)
+            categories[name].append((proposal.id, proposal.scope_id))
         statement = select(Message.id, Message.scope_id).where(
             Message.recipient_id == dbp.id, Message.org_id == dbp.org_id,
-            Message.quarantined.is_(False))
+            Message.quarantined.is_(False), Message.scope_id.in_(readable))
         if since is not None:
             statement = statement.where(Message.created_at > since)
-        messages = sess.execute(statement.order_by(Message.created_at.desc(), Message.id)
-                                .limit(MAX_DIGEST_SCAN + 1)).all()
-        truncated["messages"] = len(messages) > MAX_DIGEST_SCAN
-        for message in messages[:MAX_DIGEST_SCAN]:
-            if role(message.scope_id) is not None:  # current grants, as message_inbox does
-                categories["messages"].append(message.id)
+        for message in scan(statement.order_by(Message.created_at.desc(), Message.id), "messages"):
+            categories["messages"].append((message.id, message.scope_id))
         return {"format": "distributedai-attention/v1", "principal_id": dbp.id,
                 "organisation_id": dbp.org_id, "generated_at": _iso(now), "read_only": True,
                 "since": _iso(since), "categories": {
-                    name: {"count": len(ids), "ids": ids[:limit], "ids_unlisted": max(0, len(ids) - limit)}
-                    for name, ids in categories.items()},
+                    name: {"count": len(entries), "ids": [entry[0] for entry in entries[:limit]],
+                           "items": [{"id": entry[0], "scope_id": entry[1]} for entry in entries[:limit]],
+                           "ids_unlisted": max(0, len(entries) - limit)}
+                    for name, entries in categories.items()},
                 "scan_truncated": truncated,
-                "notes": ["Counts are lower bounds when scan_truncated is true.",
+                "notes": ["Only scopes you can currently access are scanned or counted.",
+                          "Counts are lower bounds when scan_truncated is true.",
                           "Message read state is not tracked; use 'since' as your own cursor.",
                           "Lease expiry is evaluated at read time; job state is unchanged.",
-                          "IDs only: open items with the scoped tools; their content is untrusted data."],
-                "drill_down": {"jobs": "job_list / job_claim / job_review",
-                               "proposals": "proposal_list / memory_review",
-                               "messages": "message_inbox"}}
+                          "Open items with the read-only *_get tools; their content is untrusted data."],
+                "drill_down": {"jobs": "job_get", "proposals": "proposal_get", "messages": "message_get"}}
+
+    def _op_job_get(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Read one job by ID under job_list's reader rule. The submitted result is shown only
+        to the creator, the assignee and scope reviewers — the people who act on it."""
+        _check_keys(args, {"job_id"})
+        job = self._get_job(sess, dbp.org_id, args.get("job_id"))
+        scope = self._get_scope(sess, dbp.org_id, job.scope_id)
+        role = self._require_role(sess, dbp, scope, "reader")
+        out = {**self._job_public(job), "trust": "untrusted_data"}
+        if dbp.id in {job.creator_id, job.assignee_id} or _ROLE_RANK[role] >= _ROLE_RANK["reviewer"]:
+            out["result"] = json.loads(job.result) if job.result is not None else None
+            out["findings"] = json.loads(job.findings)
+        return out
+
+    def _op_proposal_get(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Read one proposal by ID: scope reviewers (as proposal_list) or its proposer."""
+        _check_keys(args, {"proposal_id"})
+        pid = _str_arg(args, "proposal_id", max_len=64)
+        proposal = sess.execute(select(MemoryProposal).where(
+            MemoryProposal.id == pid, MemoryProposal.org_id == dbp.org_id)).scalar_one_or_none()
+        if proposal is None:
+            raise ServiceError("not_found", "proposal not found in this organisation")
+        scope = self._get_scope(sess, dbp.org_id, proposal.scope_id)
+        if proposal.proposer_id == dbp.id:
+            self._require_role(sess, dbp, scope, "reader")
+        else:
+            self._require_role(sess, dbp, scope, "reviewer")
+        evidence = self._evidence_by_proposal(sess, dbp.org_id, [proposal.id])
+        return {"proposal_id": proposal.id, "scope_id": proposal.scope_id, "key": proposal.key,
+                "content": proposal.content, "source": proposal.source, "status": proposal.status,
+                "quarantined": proposal.quarantined, "findings": json.loads(proposal.findings),
+                "epistemic_kind": proposal.epistemic_kind, "expected_version": proposal.expected_version,
+                "proposer_id": proposal.proposer_id, "created_at": _iso(proposal.created_at),
+                "evidence": evidence_rules.public(evidence.get(proposal.id)), "trust": "untrusted_data"}
+
+    def _op_message_get(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        """Read one of your messages by ID under message_inbox's rules (recipient only, not
+        quarantined, scope still readable). Every refusal is the same not_found."""
+        _check_keys(args, {"message_id"})
+        mid = _str_arg(args, "message_id", max_len=64)
+        message = sess.execute(select(Message).where(
+            Message.id == mid, Message.org_id == dbp.org_id, Message.recipient_id == dbp.id,
+            Message.quarantined.is_(False))).scalar_one_or_none()
+        scope = sess.get(Scope, message.scope_id) if message is not None else None
+        if scope is None or self._role_for(sess, dbp, scope) is None:
+            raise ServiceError("not_found", "message unavailable")
+        return {"message_id": message.id, "scope_id": message.scope_id, "sender_id": message.sender_id,
+                "body": message.body, "created_at": _iso(message.created_at), "trust": "untrusted_data"}
 
     # -- routine preflight and capability reports (pure, read-only) -----------
 
@@ -1747,12 +1825,12 @@ class Store:
             raise ServiceError("invalid_argument", str(exc)) from None
 
     def _op_capability_report(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
-        _check_keys(args, {"scope_id", "current", "previous"})
+        _check_keys(args, {"scope_id", "current", "previous", "previous_evaluated_at"})
         scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
         self._require_role(sess, dbp, scope, "reader")
         try:
             return routines.capability_report(scope.id, args.get("current"), args.get("previous"),
-                                              _aware_now())
+                                              _aware_now(), args.get("previous_evaluated_at"))
         except ValueError as exc:
             raise ServiceError("invalid_argument", str(exc)) from None
 

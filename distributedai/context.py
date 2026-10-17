@@ -58,7 +58,7 @@ def build_packet(header: dict, mandatory: list[dict], optional: list[dict], *,
     packet = {"format": FORMAT, **header, "bounded": max_bytes is not None,
               "max_bytes": max_bytes, "used_bytes": None, "size_basis": SIZE_BASIS,
               "trust": "untrusted_data", "items": list(mandatory),
-              "mandatory": {"count": len(mandatory), "complete": True},
+              "mandatory": {"count": len(mandatory), "complete": True, "content": "full"},
               "omitted": {"total": 0, "by_reason": {"limit": 0, "budget": 0},
                           "refs": [], "refs_unlisted": 0},
               "drill_down": {"tool": "memory_get", "arguments": ["scope_id", "key", "version"]}}
@@ -92,25 +92,40 @@ def build_packet(header: dict, mandatory: list[dict], optional: list[dict], *,
     used = size()
     if used > max_bytes:
         raise BudgetExceeded(used, max_bytes)
-    # Adding an item costs its encoding plus a separator; omission counters only shrink,
-    # so this running total over-estimates and the exact check below confirms it.
-    kept, skipped = [], []
-    for item in optional:
+    # Adding an item costs its encoding plus a separator. This running estimate ignores
+    # digit changes in the counters (including used_bytes itself), so the exact check
+    # below has the final say and backs out optional content until the packet fits.
+    kept: list[int] = []
+    for position, item in enumerate(optional):
         cost = encoded_size(item) + 1
         if used + cost <= max_bytes:
-            kept.append(item)
+            kept.append(position)
             used += cost
-        else:
-            skipped.append(item)
+
+    def skipped_items() -> list[dict]:
+        chosen = set(kept)
+        return [item for position, item in enumerate(optional) if position not in chosen]
+
     listed = 0
-    for entry in [item["ref"] for item in skipped] + omitted_refs:
+    for entry in [item["ref"] for item in skipped_items()] + omitted_refs:
         cost = encoded_size(entry) + 1
         if used + cost > max_bytes:
             break
         used += cost
         listed += 1
-    packet["items"].extend(kept)
-    finish(skipped, listed=listed)
-    if size() > max_bytes or encoded_size(packet) != packet["used_bytes"]:
+
+    def assemble() -> int:
+        packet["items"] = list(mandatory) + [optional[position] for position in kept]
+        finish(skipped_items(), listed=listed)
+        return size()
+
+    while assemble() > max_bytes:
+        if listed:
+            listed -= 1
+        elif kept:
+            kept.pop()
+        else:  # identical to the mandatory-only packet measured above
+            raise BudgetExceeded(packet["used_bytes"], max_bytes)
+    if encoded_size(packet) != packet["used_bytes"]:
         raise RuntimeError("context packet size accounting failed")
     return packet

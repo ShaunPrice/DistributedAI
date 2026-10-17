@@ -197,7 +197,7 @@ def test_evidence_is_reviewed_normalised_and_never_authoritative(env):
     proposal = env.store.dispatch(env.alice, "memory_propose", {"scope_id": env.proj_a, "key": "spec",
                                                                 "content": "Rail limit 40 W", "evidence": evidence})
     reviewing = env.store.dispatch(env.carol, "proposal_list", {"scope_id": env.proj_a})["proposals"][0]
-    assert reviewing["evidence"]["source_url"] == "https://docs.example.org/spec"
+    assert reviewing["evidence"]["source_url"] == "https://docs.example.org/spec#section"
     assert reviewing["evidence"]["retrieved_at"].endswith("06:00:00Z")
     assert reviewing["evidence"]["observed_at"] is None  # unknown stays unknown
     # Not visible to readers until accepted.
@@ -239,7 +239,8 @@ def test_freshness_never_uses_review_time(env):
 def test_duplicates_require_same_source_and_same_content(env):
     url = "https://example.org/a"
     accept(env, env.alice, env.proj_a, "one", "same text", evidence={"source_url": url})
-    accept(env, env.alice, env.proj_a, "two", "same text", evidence={"source_url": url + "#frag"})
+    accept(env, env.alice, env.proj_a, "two", "same text", evidence={"source_url": "HTTPS://EXAMPLE.org:443/a"})
+    accept(env, env.alice, env.proj_a, "section", "same text", evidence={"source_url": url + "#part-2"})
     accept(env, env.alice, env.proj_a, "three", "same text", evidence={"source_url": "https://other.example/a"})
     accept(env, env.alice, env.proj_a, "four", "different text", evidence={"source_url": url})
     items = ctx(env, env.alice, env.proj_a)["items"]
@@ -334,3 +335,79 @@ def test_packet_builder_invariants_across_budgets():
     unbounded = context_packets.build_packet({}, mandatory, optional, max_bytes=None,
                                              limit_omitted=70, omitted_refs=limit_refs)
     assert unbounded["omitted"]["refs_unlisted"] == 20 and unbounded["bounded"] is False
+
+
+# -- review regressions: mandatory content and exact budgets ---------------------------------
+
+def bulk_records(env, scope_id, count, prefix="bulk"):
+    """Insert many newer canonical records directly (fixture shortcut, unencrypted store)."""
+    from datetime import timedelta as delta
+    from sqlalchemy.orm import Session
+    from distributedai.store import MemoryRecord, _now
+    later = _now() + delta(minutes=5)
+    with Session(env.store._engine) as sess, sess.begin():
+        sess.add_all([MemoryRecord(id=f"{prefix}{index:06d}".ljust(32, "0")[:32], org_id=env.admin.org_id,
+                                   scope_id=scope_id, key=f"{prefix}-{index}", content=f"{prefix} {index}",
+                                   version=1, epistemic_kind="observation", source="",
+                                   created_by=env.alice.id, updated_at=later) for index in range(count)])
+
+
+def test_mandatory_records_are_never_previewed_even_beyond_the_scan(env):
+    rule = "Synthetic rule: " + prose(409)  # 425 characters, beyond the 280-character preview
+    accept(env, env.alice, env.dept, "rule", rule, kind="constraint")
+    long_a, long_b = "Department value " + prose(400), "Project value " + prose(420)
+    accept(env, env.alice, env.dept, "voltage", long_a)
+    accept(env, env.alice, env.proj_a, "voltage", long_b)
+    bulk_records(env, env.proj_a, 1005)  # pushes all of the above out of the recency scan
+    for view in ("compact", "full"):
+        packet = ctx(env, env.alice, env.proj_a, view=view, query="no such text")
+        assert packet["search_truncated"] is True
+        mandatory = {(item["mandatory"], item["ref"]["scope_id"]): item for item in packet["items"]
+                     if "mandatory" in item}
+        assert mandatory[("constraint", env.dept)]["content"] == rule
+        assert mandatory[("conflict", env.dept)]["content"] == long_a
+        assert mandatory[("conflict", env.proj_a)]["content"] == long_b
+        assert all("preview" not in item and item.get("truncated") in (None, False)
+                   for item in mandatory.values())
+        assert packet["mandatory"] == {"count": 3, "complete": True, "content": "full"}
+    with pytest.raises(ServiceError) as raised:
+        ctx(env, env.alice, env.proj_a, max_bytes=1500)  # cannot hold the full mandatory text
+    assert raised.value.code == "budget_exceeded"
+
+
+def test_bounded_packets_never_fail_internally_at_digit_boundaries():
+    # Review repro: three-to-four digit growth of used_bytes with a mandatory item present.
+    packet = context_packets.build_packet({"padding": "a" * 521}, [{"ref": {"id": "mandatory"}}],
+                                          [{"ref": {"id": "optional"}}], max_bytes=1000)
+    assert packet["used_bytes"] == context_packets.encoded_size(packet) <= 1000
+    for boundary in (1000, 10000):
+        for padding in range(boundary - 700, boundary - 400, 3):
+            for optional_text in ("x", "é" * 40, "数据" * 60):  # multi-byte UTF-8 too
+                try:
+                    packet = context_packets.build_packet(
+                        {"padding": "a" * padding}, [{"ref": {"id": "m"}, "content": "rule ü"}],
+                        [{"ref": {"id": f"o{i}"}, "preview": optional_text} for i in range(3)],
+                        max_bytes=boundary, limit_omitted=120,
+                        omitted_refs=[{"id": f"cut{i}"} for i in range(50)])
+                except context_packets.BudgetExceeded:
+                    continue
+                omitted = packet["omitted"]
+                assert packet["used_bytes"] == context_packets.encoded_size(packet) <= boundary
+                assert len(omitted["refs"]) + omitted["refs_unlisted"] == omitted["total"]
+                assert omitted["by_reason"]["limit"] == 120
+
+
+@pytest.mark.parametrize("listed", ["none", "partial", "all"])
+def test_omitted_reference_accounting_includes_unsupplied_refs(listed):
+    # Review repro: limit_omitted=100 with only 50 supplied refs must leave 50 unlisted.
+    refs = [{"id": f"cut{i}"} for i in range(50)]
+    budget = {"none": 700, "partial": 1500, "all": 100000}[listed]
+    for max_bytes in (None, budget):
+        packet = context_packets.build_packet({}, [], [], max_bytes=max_bytes, limit_omitted=100,
+                                              omitted_refs=refs)
+        omitted = packet["omitted"]
+        assert omitted["total"] == 100
+        assert len(omitted["refs"]) + omitted["refs_unlisted"] == 100
+        assert omitted["refs_unlisted"] >= 50
+        if max_bytes is not None:
+            assert packet["used_bytes"] == context_packets.encoded_size(packet) <= max_bytes

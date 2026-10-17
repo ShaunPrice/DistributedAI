@@ -12,7 +12,7 @@ from sqlalchemy import event, inspect, select, update
 from sqlalchemy.orm import Session, attributes
 
 from .encryption import CryptoBox, EncryptionError
-from .workspace import Job, MemoryEvidence, MemoryProposal, MemoryRecord, MemoryVersion, Message, Org
+from .workspace import METADATA_ONLY_OPERATIONS, Job, MemoryEvidence, MemoryProposal, MemoryRecord, MemoryVersion, Message, Org
 
 FIELDS = {
     MemoryRecord: {"content": None, "source": ""},
@@ -117,9 +117,12 @@ def enable_encryption(store, crypto: CryptoBox):
 
     @wraps(original)
     def dispatch(principal, operation, arguments):
-        verified = store.resolve_principal(getattr(principal, "id", None))
-        if verified is not None:
-            crypto.provision(verified.org_id)
+        # Metadata-only reads never touch ciphertext, so they must not create key material:
+        # an authenticated read-only call leaves the database exactly as it found it.
+        if operation not in METADATA_ONLY_OPERATIONS:
+            verified = store.resolve_principal(getattr(principal, "id", None))
+            if verified is not None:
+                crypto.provision(verified.org_id)
         with crypto.operation():
             return original(principal, operation, arguments)
 

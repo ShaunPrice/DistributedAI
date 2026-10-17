@@ -229,3 +229,38 @@ def test_upgrade_utility_on_postgresql(env):
     assert sorted(result["changed"] for result in results) == [False, True]
     assert upgrade.detect(engine)["version"] == "0.2"
     engine.dispose()
+
+
+def test_rollback_cannot_silently_drop_evidence_written_concurrently(env):
+    """A writer that inserts evidence while rollback runs is either counted or blocks; it is
+    never dropped without --allow-evidence-loss."""
+    import time
+    from distributedai.persistence import upgrade
+    from distributedai.store import MemoryEvidence
+    store, owner, worker, root, url = env
+    engine = create_engine(url)
+    writer = engine.connect()
+    transaction = writer.begin()
+    writer.execute(MemoryEvidence.__table__.insert().values(
+        id="race0".ljust(32, "0"), org_id=owner.org_id, scope_id=root, key="k", proposal_id="p".ljust(32, "0"),
+        payload="synthetic", created_at=__import__("datetime").datetime(2026, 1, 1)))
+    outcome = {}
+
+    def roll():
+        try:
+            outcome["result"] = upgrade.rollback(engine, confirm_backup=True, writers_stopped=True,
+                                                 allow_evidence_loss=False)
+        except upgrade.UpgradeError as exc:
+            outcome["error"] = str(exc)
+
+    thread = threading.Thread(target=roll)
+    thread.start()
+    time.sleep(1.0)
+    assert thread.is_alive()  # waiting on the table lock held by the open writer
+    transaction.commit()
+    writer.close()
+    thread.join(timeout=30)
+    assert "holds 1 rows" in outcome.get("error", "")
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM memory_evidence")).scalar_one() == 1
+    engine.dispose()

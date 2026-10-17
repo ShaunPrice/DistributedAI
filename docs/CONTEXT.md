@@ -22,7 +22,7 @@ These additions help an AI client read less while keeping the material it must n
 - **Constraints** — canonical records with `epistemic_kind: "constraint"` (a new kind; propose rules with it).
 - **Scope conflicts** — the same key holding *different* content in more than one readable scope of the chain. Every version is included with `conflict.refs` and `nearest_scope_id`. Identical content is not a conflict.
 
-If the mandatory material does not fit `max_bytes`, the call fails with `budget_exceeded` instead of silently dropping it. More than 500 constraints or 200 conflicting keys fail with `too_large`; narrow the scope.
+Mandatory items always carry their **full** `content`, in both views: they are never shortened to a preview, and the packet reports `mandatory: {"complete": true, "content": "full"}`. If the mandatory material does not fit `max_bytes`, the call fails with `budget_exceeded` instead of silently dropping or shortening it. Only optional items are previewed (compact view) or omitted (budget). More than 500 constraints or 200 conflicting keys fail with `too_large`; narrow the scope.
 
 Reviewers additionally receive `open_conflicts`: pending proposals whose `expected_version` is already stale (metadata only; read text through `proposal_list`). Other callers receive an empty list marked `reviewer_scopes_only`.
 
@@ -38,7 +38,7 @@ Under a budget, exact duplicates (below) are dropped before other optional items
 
 | Field | Rules |
 |---|---|
-| `source_url` | http/https only, host required. Rejected if it contains user-info credentials or credential/signature query parameters (`token`, `api_key`, `X-Amz-Signature`, `sig`, …), whitespace or control characters. Normalised: lower-case scheme/host, default port and fragment removed. |
+| `source_url` | http/https only, host required. Rejected if it contains user-info credentials or credential/signature query parameters (`token`, `api_key`, `X-Amz-Signature`, `sig`, …), whitespace or control characters. Only case-insensitive parts are canonicalised (lower-case scheme and host, default port removed); path, query and fragment are kept as given, so a `#section` citation is preserved. Differently written URLs for the same resource are not merged. |
 | `kind` | `web`, `document`, `measurement`, `report`, `conversation` or `other` (default) |
 | `title`, `publisher`, `locator` | Optional bounded text. At least one of `source_url`, `locator` or `title` is required. |
 | `published_at`, `retrieved_at`, `observed_at` | `YYYY-MM-DD` or ISO 8601 datetime **with** an offset (naive times are ambiguous and rejected). No future dates. `retrieved_at` cannot precede `published_at`. |
@@ -55,11 +55,11 @@ The server computes `content_sha256` itself; client-supplied hashes are rejected
 
 **Evidence is not authority.** Evidence is returned with `authority: "unverified"` and `trust: "untrusted_data"`. It does not change a record's `epistemic_kind`, bypass review or verify the source.
 
-**Duplicates** are conservative: two records are duplicates only when both the normalised `source_url` and the server content hash match. The same text from different sources is corroboration and is kept. A duplicate is annotated `duplicate_of` rather than hidden.
+**Duplicates** are conservative: two records are duplicates only when both the canonical `source_url` (including any fragment) and the server content hash match. A duplicate is annotated `duplicate_of` rather than hidden. Identical text cited from different sources, or from different sections of one source, is kept as separate records so no provenance is lost — but identical material is **not** evidence of independent corroboration: sources may copy each other, and nothing here checks.
 
 ## Attention digest
 
-`attention_digest` returns counts and IDs of work waiting for you, in one small response:
+`attention_digest` returns counts and scoped references of work waiting for you, in one small response. Each category has `count`, `ids` (up to `limit`), `items` (the same entries as `{id, scope_id}`) and `ids_unlisted`:
 
 | Category | Included when |
 |---|---|
@@ -69,7 +69,19 @@ The server computes `content_sha256` itself; client-supplied hashes are rejected
 | `proposals_awaiting_my_review`, `proposals_quarantined_awaiting_rejection` | You are a reviewer and not the proposer (proposers may review only in their own personal memory, as before) |
 | `messages` | Delivered to you, not quarantined, scope still readable; optional `since` filter |
 
-It is strictly read-only: no lease sweep, no status change, no read-marking, no audit row and no personal-scope creation. Message read state is not tracked, so keep your own `since` cursor. Counts are lower bounds when `scan_truncated` reports a capped scan. The digest returns identifiers only; open items with the existing scoped tools, whose content remains untrusted. (As for every operation, an encrypted deployment provisions a tenant key on an organisation's first request.)
+Every query is restricted to the scopes you can currently access **before** its 1,000-row scan limit, so activity in scopes you cannot see is neither counted, flagged in `scan_truncated`, nor able to crowd out your own work. Counts are lower bounds only when `scan_truncated` reports that your own authorised rows exceeded the cap.
+
+It is strictly read-only: no lease sweep, no status change, no read-marking, no audit row, no personal-scope creation and **no tenant key provisioning** — it reads only unencrypted metadata columns, so the encrypted runtime skips key setup for it (as for `routine_preflight` and `capability_report`). Message read state is not tracked, so keep your own `since` cursor.
+
+Open an item with a read-only drill-down tool; none of them changes state, and content remains untrusted:
+
+| Tool | Who may read |
+|---|---|
+| `job_get(job_id)` | Scope readers (as `job_list`); the submitted `result` and `findings` only for the creator, assignee or scope reviewers. Never lease credentials |
+| `proposal_get(proposal_id)` | Scope reviewers (as `proposal_list`) or the proposer; includes findings and evidence |
+| `message_get(message_id)` | The recipient, while not quarantined and the scope is still readable; every refusal is the same `not_found` |
+
+These work for items far older than the recent-list limits of `job_list`/`proposal_list`. Claiming and reviewing remain explicit separate actions.
 
 ## Routine preflight and capability changes
 
@@ -77,7 +89,7 @@ Both tools compare observations **you supply**; they store nothing and require r
 
 `routine_preflight(scope_id, routine, run_key, observations, previous?)` decides `escalate`, `report` or `skip` for each check (`pass`, `changed`, `fail`, `error`, `unknown`, optional `fingerprint`). Only an unchanged pass skips. Failures, errors, unknown outcomes, checks without a baseline and checks that disappeared all escalate. Recovery is reported. When escalating, it suggests a deterministic, scope-bound `idempotency_key`; it creates no job. If you queue one with `job_create`, that queue's creator + scope + key idempotency is the only deduplication. No exactly-once execution is implied. The benefit arises when a scheduler or worker outside the model calls it *before* invoking a model.
 
-`capability_report(scope_id, current, previous?)` reports transitions for each capability at five independent levels: `installed`, `configured`, `reachable`, `functional`, `documented`, with states `yes`, `no`, `unknown`. No level implies another. Observations past `expires_at` are reported as `expired`. Lost, expired, unknown or no-longer-observed positives are `actionable`.
+`capability_report(scope_id, current, previous?, previous_evaluated_at?)` reports transitions for each capability at five independent levels: `installed`, `configured`, `reachable`, `functional`, `documented`, with states `yes`, `no`, `unknown`. No level implies another. Observations past `expires_at` are reported as `expired`. When you pass a previous set you must also pass `previous_evaluated_at` (the earlier report's `evaluated_at`, not later than now): previous observations are judged at that time, so a positive that was valid then and has since expired is reported once as an actionable `expired` loss, and an observation that was already expired is `unchanged` rather than repeated. Without a previous set the report says `baseline: false` and nothing is actionable. Lost, expired, unknown or no-longer-observed positives are `actionable`. The baseline is your own data; the server keeps no checkpoint.
 
 ## Old clients
 

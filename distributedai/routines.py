@@ -130,25 +130,45 @@ def _capabilities(value, field, now):
     return out
 
 
-def capability_report(scope_id: str, current, previous, now: datetime) -> dict:
+def capability_report(scope_id: str, current, previous, now: datetime,
+                      previous_evaluated_at=None) -> dict:
     """Report per-level capability transitions; levels are independent claims.
 
     ``installed`` never implies ``configured``; ``reachable`` never implies ``functional``;
     ``documented`` says only that documentation claims it. An expired positive
     observation is reported as expired, not as still true.
+
+    Previous observations are evaluated at ``previous_evaluated_at`` (the ``evaluated_at`` of
+    the earlier report), not at ``now``: a positive that was valid then and has since expired
+    is an actionable loss, and an observation already expired then is unchanged now.
+    The baseline is caller-supplied data, not a server-held checkpoint.
     """
-    cur, prev = _capabilities(current, "current", now), _capabilities(previous, "previous", now)
+    previous_at = None
+    if previous:
+        if previous_evaluated_at is None:
+            raise ValueError("'previous_evaluated_at' is required with previous observations; "
+                             "pass the earlier report's evaluated_at")
+        try:
+            previous_at = moment_of(parse_when(previous_evaluated_at, "previous_evaluated_at", now))
+        except EvidenceError as exc:
+            raise ValueError(str(exc)) from None
+        if previous_at > now:
+            raise ValueError("previous_evaluated_at is later than this evaluation")
+    elif previous_evaluated_at is not None:
+        raise ValueError("'previous_evaluated_at' needs previous observations")
+    cur = _capabilities(current, "current", now)
+    prev = _capabilities(previous, "previous", previous_at) if previous_at else {}
     changes, unchanged = [], 0
     for key in sorted(set(cur) | set(prev)):
         before = prev[key]["effective"] if key in prev else None
         after = cur[key]["effective"] if key in cur else None
         if after is None:
             change = "not_observed"
-        elif after == "expired":
-            change = "expired"
         elif before == after:
             unchanged += 1
             continue
+        elif after == "expired":
+            change = "expired"
         elif after == "yes":
             change = "gained"
         elif after == "no":
@@ -161,7 +181,9 @@ def capability_report(scope_id: str, current, previous, now: datetime) -> dict:
                         **({"observed_at": cur[key]["observed_at"], "expires_at": cur[key]["expires_at"]}
                            if key in cur else {})})
     return {"format": "distributedai-capability-report/v1", "scope_id": scope_id,
-            "evaluated_at": now.isoformat().replace("+00:00", "Z"), "changes": changes,
+            "evaluated_at": now.isoformat().replace("+00:00", "Z"),
+            "previous_evaluated_at": previous_at.isoformat().replace("+00:00", "Z") if previous_at else None,
+            "baseline": bool(prev), "changes": changes,
             "unchanged": unchanged, "actionable": sum(c["actionable"] for c in changes),
             "levels": list(LEVELS),
             "note": "Levels are independent caller-supplied observations; nothing was probed.",

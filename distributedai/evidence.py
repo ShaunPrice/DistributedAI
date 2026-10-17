@@ -40,6 +40,9 @@ def content_sha256(content: str) -> str:
 
 
 def normalize_url(value: object) -> str:
+    """Validate a source URL and canonicalise only case-insensitive parts: scheme and host
+    are lower-cased and a default port is dropped. Path, query and fragment are kept as
+    given; this is not a claim that two differently written URLs name the same resource."""
     if not isinstance(value, str) or not value.strip():
         raise EvidenceError("source_url must be a non-empty string")
     if len(value) > MAX_URL:
@@ -66,8 +69,8 @@ def normalize_url(value: object) -> str:
     netloc = f"[{host}]" if ":" in host else host
     if port is not None and port != default:
         netloc += f":{port}"
-    # Fragments are client-side only; dropping them makes duplicate detection stable.
-    return urlunsplit((scheme, netloc, parts.path or "/", parts.query, ""))
+    # Fragments are kept: they often cite a distinct section of the same document.
+    return urlunsplit((scheme, netloc, parts.path or "/", parts.query, parts.fragment))
 
 
 def parse_when(value: object, field: str, now: datetime, *, allow_future: bool = False) -> str:
@@ -165,9 +168,12 @@ def public(doc: dict | None) -> dict | None:
 
 
 def duplicate_key(doc: dict | None) -> tuple[str, str] | None:
-    """Conservative duplicate identity: same normalised URL AND same server content hash.
+    """Conservative duplicate identity: same normalised URL (including any fragment) AND
+    same server content hash.
 
-    Different sources with identical text are corroboration, not duplicates, and are kept.
+    Identical text cited from different sources is kept as separate records, because
+    removing it would lose provenance. That does NOT make it independent corroboration:
+    the sources may copy each other, and nothing here checks.
     """
     if not doc or not doc.get("source_url"):
         return None

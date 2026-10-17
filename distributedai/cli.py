@@ -20,6 +20,8 @@ def main():
     upgrade.add_argument("--rollback", action="store_true", help="Drop the 0.2 evidence table")
     upgrade.add_argument("--confirm-backup", action="store_true", help="Confirm a verified backup exists")
     upgrade.add_argument("--allow-evidence-loss", action="store_true", help="Permit rollback to drop evidence rows")
+    upgrade.add_argument("--writers-stopped", action="store_true",
+                         help="Confirm all API replicas and workers are stopped (required for --rollback)")
     migration = sub.add_parser("encrypt-existing", help="Offline conversion of pre-encryption payloads")
     migration.add_argument("--confirm-writers-stopped", action="store_true", required=True)
     boot = sub.add_parser("bootstrap", help="Provision initial organisation only on an empty database")
@@ -62,6 +64,7 @@ def main():
                 result = schema.apply(engine, confirm_backup=args.confirm_backup)
             elif args.rollback:
                 result = schema.rollback(engine, confirm_backup=args.confirm_backup,
+                                         writers_stopped=args.writers_stopped,
                                          allow_evidence_loss=args.allow_evidence_loss)
             else:
                 result = schema.plan(engine)

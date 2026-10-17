@@ -10,7 +10,8 @@ from distributedai.config import Settings
 from distributedai.server import Limits, create_server
 from test_transport import FakeStore
 
-NEW_TOOLS = {"memory_context", "memory_get", "attention_digest", "routine_preflight", "capability_report"}
+NEW_TOOLS = {"memory_context", "memory_get", "attention_digest", "routine_preflight", "capability_report",
+             "job_get", "proposal_get", "message_get"}
 
 
 async def session(client, headers):
@@ -73,3 +74,11 @@ async def test_tool_contracts_and_old_client_argument_shapes():
             assert "previous" not in store.calls[-1][2]
             result = await call(client, headers, "capability_report", {"scope_id": "s", "current": []})
             assert result["structuredContent"] == {"scopes": []}
+            assert store.calls[-1][2] == {"scope_id": "s", "current": []}
+            await call(client, headers, "capability_report", {"scope_id": "s", "current": [], "previous": [],
+                                                              "previous_evaluated_at": "2026-10-16"})
+            assert store.calls[-1][2]["previous_evaluated_at"] == "2026-10-16"
+            for name, arguments in (("job_get", {"job_id": "j"}), ("proposal_get", {"proposal_id": "p"}),
+                                    ("message_get", {"message_id": "m"})):
+                result = await call(client, headers, name, arguments)
+                assert result["structuredContent"] == {"scopes": []} and store.calls[-1] == ("client", name, arguments)
