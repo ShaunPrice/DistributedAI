@@ -8,7 +8,7 @@ The setup script generates `.secrets/db_password`, `.secrets/bootstrap_token`, `
 
 `docker compose stop` stops the installation without removing data. `docker compose down` removes its containers/network but retains the named data volume. Do not add `--volumes` unless you intend to delete data. Back up before schema or image changes. This initial schema uses an explicit `distributedai init` command; future schema changes must ship versioned migrations before upgrading an existing deployment.
 
-For local source development, `uv sync --frozen` and set `DATABASE_URL` to a dedicated PostgreSQL instance. SQLite is supported for tests, not recommended for distributed deployment.
+For local source development, install uv (CI uses 0.13.10), run `uv sync --locked` (defaults to Python 3.15.2 via `.python-version`), and set `DATABASE_URL` to a dedicated PostgreSQL instance. SQLite is supported for tests, not recommended for distributed deployment.
 
 ## Organisation provisioning
 

@@ -29,7 +29,7 @@ No embedding model, hosted LLM, Redis, broker, shell executor or paid API is req
 
 ## Start locally
 
-Install Docker Engine with Compose, or Docker Desktop. Python 3.9+ is sufficient for the setup script; the application runs as Python 3.12 in Docker.
+Install Docker Engine with Compose, or Docker Desktop. Python 3.9+ is sufficient for the setup script; the application runs on Python 3.15.2 in Docker. Source installs continue to support Python 3.12 and later; uv uses the version in `.python-version` by default.
 
 ```sh
 git clone https://github.com/ShaunPrice/DistributedAI.git
