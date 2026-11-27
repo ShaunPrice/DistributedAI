@@ -12,7 +12,8 @@ from sqlalchemy import event, inspect, select, update
 from sqlalchemy.orm import Session, attributes
 
 from .encryption import CryptoBox, EncryptionError
-from .workspace import Job, MemoryProposal, MemoryRecord, MemoryVersion, Message, Org
+from .workspace import (ImprovementAttempt, ImprovementProblem, Job, MemoryProposal,
+                        MemoryRecord, MemoryVersion, Message, Org)
 
 FIELDS = {
     MemoryRecord: {"content": None, "source": ""},
@@ -20,6 +21,9 @@ FIELDS = {
     MemoryProposal: {"content": None, "source": "", "findings": "[]"},
     Message: {"body": None, "findings": "[]"},
     Job: {"objective": None, "result": None, "findings": "[]"},
+    ImprovementProblem: {"problem": None},
+    ImprovementAttempt: {"change": None, "rationale": None, "predicted": None, "context": "",
+                         "observed": None},
 }
 _PENDING = "distributedai_encryption_pending"
 

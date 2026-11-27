@@ -18,6 +18,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -65,6 +66,10 @@ MAX_SOURCE = 500
 MAX_RESULT_JSON = 20_000
 MAX_IDEMPOTENCY = 200
 MAX_HISTORY = 50
+MAX_PROBLEM = 500
+MAX_IMPROVEMENT_TEXT = 4_000
+MAX_PROBLEMS_PER_SCOPE = 500
+MAX_ATTEMPTS_PER_PROBLEM = 50
 
 SCOPE_KINDS = ("organisation", "department", "project")
 CREATABLE_SCOPE_KINDS = ("department", "project")
@@ -73,6 +78,9 @@ _ROLE_RANK = {"reader": 1, "writer": 2, "reviewer": 3, "admin": 4}
 EPISTEMIC_KINDS = (
     "observation", "fact", "belief", "hypothesis", "assumption", "inference", "decision",
 )
+
+IMPROVEMENT_VERDICTS = ("improved", "no_change", "regressed", "inconclusive")
+IMPROVEMENT_DECISIONS = ("retain", "revise", "replace", "remove")
 
 JOB_MIN_LEASE = 30
 JOB_MAX_LEASE = 1800
@@ -99,6 +107,12 @@ def _digest(token: str) -> str:
 
 def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() + "Z" if dt is not None else None
+
+
+def _problem_identity(text_value: str) -> str:
+    """Comparison form of a problem statement: Unicode-normalised, case-folded and
+    whitespace-collapsed. Used only in memory to group attempts; never stored or indexed."""
+    return " ".join(unicodedata.normalize("NFKC", text_value).casefold().split())
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +283,44 @@ class Job(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
+class ImprovementProblem(Base):
+    """A recurring problem that improvement attempts are grouped under."""
+
+    __tablename__ = "improvement_problems"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    org_id: Mapped[str] = mapped_column(String(32), ForeignKey("orgs.id"), index=True)
+    scope_id: Mapped[str] = mapped_column(String(32), ForeignKey("scopes.id"), index=True)
+    problem: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class ImprovementAttempt(Base):
+    """One attempted change for a problem. The prediction is written when the attempt is
+    recorded; the observed outcome is written once, afterwards, and never revised."""
+
+    __tablename__ = "improvement_attempts"
+    __table_args__ = (UniqueConstraint("problem_id", "number"),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    org_id: Mapped[str] = mapped_column(String(32), ForeignKey("orgs.id"), index=True)
+    scope_id: Mapped[str] = mapped_column(String(32), ForeignKey("scopes.id"), index=True)
+    problem_id: Mapped[str] = mapped_column(String(32), ForeignKey("improvement_problems.id"),
+                                            index=True)
+    number: Mapped[int] = mapped_column(Integer)
+    change: Mapped[str] = mapped_column(Text)
+    rationale: Mapped[str] = mapped_column(Text)
+    predicted: Mapped[str] = mapped_column(Text)
+    context: Mapped[str] = mapped_column(Text, default="")
+    recorded_by: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    observed: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verdict: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    decision: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    outcome_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    outcome_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -363,6 +415,7 @@ _OPERATIONS = {
     "job_cancel", "audit_list",
     "instance_create", "instance_list", "connection_issue", "connection_revoke",
     "connection_list", "billing_status",
+    "improvement_record", "improvement_outcome", "improvement_list", "improvement_delete",
 }
 
 
@@ -542,7 +595,8 @@ class Store:
                 # is_org_admin flag is deliberately ignored.
                 if operation in {"scope_create", "scope_move", "scope_merge", "scope_delete", "scope_policy_set", "scope_owner_set",
                                  "memory_propose", "memory_review", "memory_delete", "memory_export", "scope_backup",
-                                 "organisation_backup", "message_send", "job_create", "grant", "grant_revoke"}:
+                                 "organisation_backup", "message_send", "job_create", "grant", "grant_revoke",
+                                 "improvement_record", "improvement_outcome", "improvement_delete"}:
                     sess.execute(select(Org.id).where(Org.id == dbp.org_id).with_for_update()).scalar_one()
                 return handler(sess, dbp, arguments)
         except IntegrityError as exc:
@@ -936,7 +990,8 @@ class Store:
     @staticmethod
     def _scope_has_data(sess, scope_id):
         return any(sess.execute(select(model.id).where(model.scope_id == scope_id).limit(1)).first()
-                   for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job))
+                   for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job,
+                                 ImprovementProblem))
 
     def _delete_empty_scope(self, sess, scope):
         for model in (Grant, ScopeOwnership, ScopePermission, MemoryLock):
@@ -957,10 +1012,12 @@ class Store:
         if sess.execute(select(Scope.id).where(Scope.parent_id == scope.id).limit(1)).first():
             raise ServiceError("conflict", "move or delete all child scopes first")
         if self._scope_has_data(sess, scope.id) and not delete_contents:
-            raise ServiceError("conflict", "scope contains retained memories, messages or jobs; explicit delete_contents required")
+            raise ServiceError("conflict", "scope contains retained memories, messages, jobs or improvement records; explicit delete_contents required")
         removed = 0
         if delete_contents:
-            for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job):
+            # Attempts reference problems, so they are removed first.
+            for model in (MemoryRecord, MemoryVersion, MemoryProposal, Message, Job,
+                          ImprovementAttempt, ImprovementProblem):
                 result = sess.execute(delete(model).where(model.org_id == dbp.org_id, model.scope_id == scope.id))
                 removed += result.rowcount
             if self.billing.enabled:
@@ -997,7 +1054,8 @@ class Store:
         for child in children:
             child.parent_id = target.id
         removed_grants = len(sess.execute(select(Grant.id).where(Grant.scope_id == source.id)).all())
-        for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryLock, Message, Job):
+        for model in (MemoryRecord, MemoryVersion, MemoryProposal, MemoryLock, Message, Job,
+                      ImprovementProblem, ImprovementAttempt):
             sess.execute(update(model).where(model.scope_id == source.id).values(scope_id=target.id))
         sess.flush()
         sid = source.id
@@ -1029,7 +1087,8 @@ class Store:
     def _export_rows(self, sess, dbp, scope, *, backup):
         if backup and not hasattr(self, "crypto"):
             raise ServiceError("invalid_state", "encrypted backup requires configured encryption")
-        models = (MemoryRecord, MemoryVersion, MemoryProposal)
+        models = (MemoryRecord, MemoryVersion, MemoryProposal, ImprovementProblem,
+                  ImprovementAttempt)
         if backup:
             models += (Message, Job)
         datasets, size, count = {}, 0, 0
@@ -1047,7 +1106,9 @@ class Store:
                     if isinstance(item, datetime):
                         row[name] = _iso(item)
                 if backup:
-                    for field in {"content", "source", "findings", "body", "objective", "result"} & set(row):
+                    for field in {"content", "source", "findings", "body", "objective", "result",
+                                  "problem", "change", "rationale", "predicted", "context",
+                                  "observed"} & set(row):
                         if row[field] is not None and not row[field].startswith(self.crypto.PREFIX):
                             raise ServiceError("invalid_state", "plaintext payload cannot be backed up through this interface")
                     # Memory keys and job idempotency labels can also contain personal data.
@@ -1266,7 +1327,9 @@ class Store:
         candidates = sess.execute(
             stmt.order_by(MemoryRecord.updated_at.desc(), MemoryRecord.id).limit(1001)
         ).scalars().all()
-        rows = [row for row in candidates[:1000] if query.casefold() in row.content.casefold()][:limit]
+        needle = query.casefold()
+        rows = [row for row in candidates[:1000]
+                if needle in row.content.casefold() or needle in row.key.casefold()][:limit]
         return {"search_truncated": len(candidates) > 1000, "records": [
             {"scope_id": r.scope_id, "key": r.key, "content": r.content,
              "version": r.version, "epistemic_kind": r.epistemic_kind, "source": r.source,
@@ -1307,9 +1370,194 @@ class Store:
             {"proposal_id": p.id, "key": p.key, "content": p.content, "source": p.source,
              "status": p.status, "quarantined": p.quarantined,
              "findings": json.loads(p.findings), "epistemic_kind": p.epistemic_kind,
-             "proposer_id": p.proposer_id}
+             "proposer_id": p.proposer_id, "expected_version": p.expected_version,
+             "created_at": _iso(p.created_at)}
             for p in rows
         ]}
+
+    # -- improvement memory ---------------------------------------------------
+    #
+    # A scoped, append-only ledger of attempted improvements grouped by the recurring problem
+    # they address. Each attempt carries its rationale and a prediction written BEFORE the
+    # result is known; the observed outcome is recorded once afterwards, including when the
+    # change regressed. The service stores and returns these records. It does not evaluate
+    # changes, run an optimiser or call a model.
+
+    @staticmethod
+    def _attempt_public(attempt: ImprovementAttempt) -> dict:
+        return {"attempt_id": attempt.id, "number": attempt.number, "change": attempt.change,
+                "rationale": attempt.rationale, "predicted": attempt.predicted,
+                "context": attempt.context, "recorded_by": attempt.recorded_by,
+                "recorded_at": _iso(attempt.created_at), "observed": attempt.observed,
+                "verdict": attempt.verdict, "decision": attempt.decision,
+                "outcome_by": attempt.outcome_by, "outcome_at": _iso(attempt.outcome_at),
+                # Identity separation only: two identities are not proof of two evaluators.
+                "independent_outcome": (attempt.outcome_by is not None
+                                        and attempt.outcome_by != attempt.recorded_by)}
+
+    def _op_improvement_record(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        _check_keys(args, {"scope_id", "problem", "change", "rationale", "predicted", "context"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "writer")
+        problem_text = _str_arg(args, "problem", max_len=MAX_PROBLEM)
+        change = _str_arg(args, "change", max_len=MAX_IMPROVEMENT_TEXT)
+        rationale = _str_arg(args, "rationale", max_len=MAX_IMPROVEMENT_TEXT)
+        predicted = _str_arg(args, "predicted", max_len=MAX_IMPROVEMENT_TEXT)
+        context = _str_arg(args, "context", default="", max_len=MAX_SOURCE, allow_empty=True)
+        # There is no review queue for this ledger, so suspicious text is refused outright
+        # rather than stored in quarantine.
+        if security.scan_payload({"problem": problem_text, "change": change,
+                                  "rationale": rationale, "predicted": predicted,
+                                  "context": context}):
+            raise ServiceError("quarantined",
+                               "improvement record refused by payload screening; nothing stored")
+        # Problem text is encrypted at rest, so grouping compares decrypted statements of
+        # this one authorised scope in memory. The per-scope cap bounds that scan, and the
+        # organisation row lock taken by dispatch serialises concurrent recorders.
+        identity = _problem_identity(problem_text)
+        existing = sess.execute(
+            select(ImprovementProblem)
+            .where(ImprovementProblem.org_id == dbp.org_id,
+                   ImprovementProblem.scope_id == scope.id)
+            .order_by(ImprovementProblem.created_at, ImprovementProblem.id)
+            .limit(MAX_PROBLEMS_PER_SCOPE)
+        ).scalars().all()
+        problem = next((row for row in existing
+                        if _problem_identity(row.problem) == identity), None)
+        now = _now()
+        charged = sum(len(v.encode("utf-8")) for v in (change, rationale, predicted, context))
+        created = problem is None
+        if created:
+            if len(existing) >= MAX_PROBLEMS_PER_SCOPE:
+                raise ServiceError("limit_exceeded",
+                                   f"scope already holds {MAX_PROBLEMS_PER_SCOPE} problems")
+            problem = ImprovementProblem(id=_new_id(), org_id=dbp.org_id, scope_id=scope.id,
+                                         problem=problem_text, created_by=dbp.id,
+                                         created_at=now, updated_at=now)
+            sess.add(problem)
+            sess.flush([problem])
+            charged += len(problem_text.encode("utf-8"))
+            number = 1
+        else:
+            number = 1 + len(sess.execute(
+                select(ImprovementAttempt.id)
+                .where(ImprovementAttempt.problem_id == problem.id)
+            ).all())
+            if number > MAX_ATTEMPTS_PER_PROBLEM:
+                raise ServiceError("limit_exceeded",
+                                   f"problem already holds {MAX_ATTEMPTS_PER_PROBLEM} attempts")
+            problem.updated_at = now
+        self.billing.charge_storage(sess, dbp.org_id, charged)
+        attempt = ImprovementAttempt(id=_new_id(), org_id=dbp.org_id, scope_id=scope.id,
+                                     problem_id=problem.id, number=number, change=change,
+                                     rationale=rationale, predicted=predicted, context=context,
+                                     recorded_by=dbp.id, created_at=now)
+        sess.add(attempt)
+        self._audit(sess, dbp.org_id, dbp.id, "improvement_record",
+                    record_id=attempt.id, scope_id=scope.id)
+        return {"problem_id": problem.id, "attempt_id": attempt.id, "number": number,
+                "problem_created": created, "status": "awaiting_outcome"}
+
+    def _op_improvement_outcome(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        _check_keys(args, {"attempt_id", "observed", "verdict", "decision"})
+        aid = _str_arg(args, "attempt_id", max_len=64)
+        observed = _str_arg(args, "observed", max_len=MAX_IMPROVEMENT_TEXT)
+        verdict = _enum_arg(args, "verdict", IMPROVEMENT_VERDICTS)
+        decision = _enum_arg(args, "decision", IMPROVEMENT_DECISIONS)
+        attempt = sess.execute(
+            select(ImprovementAttempt)
+            .where(ImprovementAttempt.id == aid, ImprovementAttempt.org_id == dbp.org_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        if attempt is None:
+            raise ServiceError("not_found", "attempt not found in this organisation")
+        # Permission is checked on the attempt's ACTUAL scope, never a caller-supplied one.
+        scope = self._get_scope(sess, dbp.org_id, attempt.scope_id)
+        self._require_role(sess, dbp, scope, "writer")
+        if attempt.verdict is not None:
+            raise ServiceError("invalid_state",
+                               "an outcome is already recorded; record a new attempt instead")
+        if security.scan_text(observed):
+            raise ServiceError("quarantined",
+                               "outcome refused by payload screening; nothing stored")
+        self.billing.charge_storage(sess, dbp.org_id, len(observed.encode("utf-8")))
+        now = _now()
+        attempt.observed = observed
+        attempt.verdict = verdict
+        attempt.decision = decision
+        attempt.outcome_by = dbp.id
+        attempt.outcome_at = now
+        problem = sess.get(ImprovementProblem, attempt.problem_id)
+        if problem is not None:
+            problem.updated_at = now
+        self._audit(sess, dbp.org_id, dbp.id, "improvement_outcome",
+                    record_id=attempt.id, scope_id=scope.id)
+        return {"attempt_id": attempt.id, "problem_id": attempt.problem_id,
+                "verdict": verdict, "decision": decision,
+                "independent_outcome": attempt.recorded_by != dbp.id}
+
+    def _op_improvement_list(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        _check_keys(args, {"scope_id", "query", "limit"})
+        scope = self._get_scope(sess, dbp.org_id, args.get("scope_id"))
+        self._require_role(sess, dbp, scope, "reader")
+        query = _str_arg(args, "query", default="", max_len=MAX_QUERY, allow_empty=True)
+        limit = _int_arg(args, "limit", default=20, lo=1, hi=50)
+        # Same reach as memory_search: the scope and the ancestors this identity can read.
+        readable = [s.id for s in self._scope_chain(sess, scope)
+                    if self._role_for(sess, dbp, s) is not None]
+        cap = MAX_PROBLEMS_PER_SCOPE
+        candidates = sess.execute(
+            select(ImprovementProblem)
+            .where(ImprovementProblem.org_id == dbp.org_id,
+                   ImprovementProblem.scope_id.in_(readable))
+            .order_by(ImprovementProblem.updated_at.desc(), ImprovementProblem.id)
+            .limit(cap + 1)
+        ).scalars().all()
+        needle = query.casefold()
+        selected = [row for row in candidates[:cap] if needle in row.problem.casefold()][:limit]
+        out = []
+        for row in selected:
+            attempts = sess.execute(
+                select(ImprovementAttempt)
+                .where(ImprovementAttempt.org_id == dbp.org_id,
+                       ImprovementAttempt.problem_id == row.id)
+                .order_by(ImprovementAttempt.number).limit(MAX_ATTEMPTS_PER_PROBLEM)
+            ).scalars().all()
+            summary = {"attempts": len(attempts),
+                       "awaiting_outcome": sum(1 for a in attempts if a.verdict is None)}
+            for name in IMPROVEMENT_VERDICTS:
+                summary[name] = sum(1 for a in attempts if a.verdict == name)
+            out.append({"problem_id": row.id, "scope_id": row.scope_id, "problem": row.problem,
+                        "created_by": row.created_by, "created_at": _iso(row.created_at),
+                        "updated_at": _iso(row.updated_at), "summary": summary,
+                        "attempts": [self._attempt_public(a) for a in attempts],
+                        "trust": "untrusted_data"})
+        return {"list_truncated": len(candidates) > cap, "problems": out}
+
+    def _op_improvement_delete(self, sess: Session, dbp: PrincipalRow, args: dict) -> dict:
+        _check_keys(args, {"problem_id"})
+        pid = _str_arg(args, "problem_id", max_len=64)
+        problem = sess.execute(
+            select(ImprovementProblem)
+            .where(ImprovementProblem.id == pid, ImprovementProblem.org_id == dbp.org_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        if problem is None:
+            raise ServiceError("not_found", "problem not found in this organisation")
+        scope = self._get_scope(sess, dbp.org_id, problem.scope_id)
+        self._require_role(sess, dbp, scope, "admin")
+        if not self._permission_flags(sess, dbp, scope)["can_delete"]:
+            raise ServiceError("denied", "delete permission revoked")
+        removed = sess.execute(delete(ImprovementAttempt).where(
+            ImprovementAttempt.org_id == dbp.org_id,
+            ImprovementAttempt.problem_id == problem.id)).rowcount
+        sess.delete(problem)
+        sess.flush()
+        if self.billing.enabled:
+            self.billing.recompute_usage(sess, dbp.org_id)
+        self._audit(sess, dbp.org_id, dbp.id, "improvement_delete",
+                    record_id=pid, scope_id=scope.id)
+        return {"problem_id": pid, "deleted": True, "removed_attempts": removed}
 
     # -- messaging -----------------------------------------------------------
 

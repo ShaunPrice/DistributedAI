@@ -25,6 +25,12 @@ Select a workspace to inspect proposed context and its source. Shared-workspace 
 
 ![Two pending memory proposals with source information and demonstration research content](images/memory-reviews.png)
 
+## Improvement memory
+
+Select a workspace to see each recurring problem with its attempts in order: the change, the reason, the effect expected beforehand and the outcome observed afterwards. Writers record a new attempt in the form at the top and add the outcome of an open attempt in place. Entries inherited from a parent workspace are labelled and read-only here. See the [improvement memory guide](IMPROVEMENT_MEMORY.md).
+
+![Improvement memory screen showing a recurring problem with one completed attempt and one attempt awaiting its outcome](images/improvement-memory.png)
+
 ## Connections and plan
 
 Group connections by instance and assign each to an owner. The owner’s project permissions determine access. This demonstration runs with billing disabled; payment controls are not shown because no provider is configured.

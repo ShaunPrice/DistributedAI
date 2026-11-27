@@ -34,6 +34,10 @@ Operations and arguments (optional defaults in parentheses):
 - `job_submit`: job_id, claim_token, result. Same lease fencing; scan result, set awaiting_review or quarantine. Claim token must not leak through reads/audits.
 - `job_review`: job_id, accept. Original creator with writer rights or scope reviewer, never assignee; accept completed or reject failed. No automatic memory promotion.
 - `job_cancel`: job_id. Creator or reviewer only. Terminal cancellation invalidates lease; cannot undo completed job. Cooperative cancellation means no promise to stop remote execution.
+- `improvement_record` (added after the initial deliverable): scope_id, problem, change, rationale, predicted, context (empty). Writer. Group under an existing problem in the same scope when the normalised statement matches, else create one; append an attempt numbered in order. Refuse suspicious text without storing it. Bounded to 500 problems per scope and 50 attempts per problem.
+- `improvement_outcome`: attempt_id, observed, verdict (`improved`, `no_change`, `regressed`, `inconclusive`), decision (`retain`, `revise`, `replace`, `remove`). Writer on the attempt's actual scope. Exactly one outcome per attempt; never edited afterwards.
+- `improvement_list`: scope_id, query (empty), limit (20, max 50). Reader. Requested scope plus readable ancestors; never siblings or descendants. Trust label `untrusted_data`.
+- `improvement_delete`: problem_id. Scope admin with delete permission; removes the problem and its attempts.
 - `audit_list`: scope_id, limit (20). Admin only; metadata with actor/time/action/record ids, no tokens or private body dumps.
 
 Security detector: bounded deterministic Unicode-normalized checks for instruction override, role spoofing, secret exfiltration, encoded/suspicious payloads. Explicitly imperfect heuristic; labels do not establish trust. Entire stored payloads remain untrusted, quarantine cannot be bypassed by setting a flag. No URLs fetched or commands executed.

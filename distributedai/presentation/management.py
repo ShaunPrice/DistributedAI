@@ -34,6 +34,7 @@ OPERATIONS = {
     "scope_create", "scope_list", "principal_create", "principal_list", "principal_revoke",
     "grant", "grant_list", "grant_revoke", "project_resolve", "memory_search", "memory_history",
     "memory_review", "proposal_list", "audit_list", "job_list", "job_review", "job_cancel",
+    "improvement_record", "improvement_outcome", "improvement_list", "improvement_delete",
 }
 
 
@@ -100,7 +101,7 @@ def management_app(store, settings):
 
     async def asset(request):
         name = request.path_params["name"]
-        if name not in {"app.js", "support.js", "help.js", "style.css", "favicon.svg", "icon-projects.svg", "icon-people.svg", "icon-reviews.svg", "icon-billing.svg", "icon-keys.svg", "icon-audit.svg", "icon-support.svg"}:
+        if name not in {"app.js", "support.js", "help.js", "style.css", "favicon.svg", "icon-projects.svg", "icon-people.svg", "icon-reviews.svg", "icon-billing.svg", "icon-keys.svg", "icon-audit.svg", "icon-support.svg", "icon-improvements.svg"}:
             return JSONResponse({"error": "Not found"}, 404)
         return FileResponse(STATIC / name)
 
@@ -181,7 +182,7 @@ def management_app(store, settings):
             return JSONResponse(result)
         except ServiceError as exc:
             status = {
-                "quota_exceeded": 429,
+                "quota_exceeded": 429, "limit_exceeded": 409,
                 "invalid_argument": 400, "weak_token": 400, "unknown_operation": 400,
                 "conflict": 409, "invalid_state": 409, "already_bootstrapped": 409,
                 # Use the same outward status for inaccessible project codes as unknown codes.

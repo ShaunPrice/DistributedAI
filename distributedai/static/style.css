@@ -948,3 +948,69 @@ textarea { width: 100%; box-sizing: border-box; border: 1px solid #cad5df; borde
   .sidebar nav { padding-bottom: 20px; }
   .workspace-label { margin-top: 28px; }
 }
+.improvement-filter {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 430px));
+  gap: 0 20px;
+}
+.form-grid .wide {
+  grid-column: 1 / -1;
+}
+.attempt {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 16px;
+}
+.attempt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.attempt dl {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.attempt dt {
+  color: var(--muted);
+}
+.attempt dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.outcome-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 0 14px;
+  align-items: end;
+  margin-top: 14px;
+}
+.outcome-form button {
+  margin: 0 0 18px;
+}
+.badge.verdict-improved {
+  background: #e3f3ea;
+  color: #23684a;
+}
+.badge.verdict-regressed {
+  background: #fbe6e8;
+  color: #9a2c3a;
+}
+.badge.verdict-open {
+  background: #fdf1d8;
+  color: #7a5a12;
+}
+@media (max-width: 760px) {
+  .improvement-filter,
+  .outcome-form,
+  .attempt dl {
+    grid-template-columns: 1fr;
+  }
+}

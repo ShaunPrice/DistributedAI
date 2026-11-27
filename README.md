@@ -19,6 +19,7 @@ DistributedAI brings the proposal/review and leased-job patterns from Cognitive-
 - Browser console for project creation, users/client identities, access assignments, review queues and audit metadata.
 - Contextual help, encrypted internal support tickets, organisation/solution support routing and configurable external portals. [Support guide and screenshots](docs/SUPPORT.md).
 - Versioned memory proposals, independent review, optimistic version checks, provenance and immutable application-level history.
+- Improvement memory: a scoped, append-only record of attempted changes grouped by recurring problem, each with its rationale, a prediction written beforehand and the observed outcome. [Improvement memory guide](docs/IMPROVEMENT_MEMORY.md).
 - Scoped private messages and jobs with atomic claims, expiring leases, fencing tokens, idempotency, cancellation and independent review.
 - Deterministic injection screening and quarantine. Screening is deliberately not a guarantee: every retrieved payload remains untrusted data.
 - Authenticated Streamable HTTP MCP, a stdio adapter, and optional OAuth resource-server support with signed JWT verification.
@@ -28,7 +29,7 @@ No embedding model, hosted LLM, Redis, broker, shell executor or paid API is req
 
 ## Start locally
 
-Install Docker Engine with Compose, or Docker Desktop. Python 3.9+ is sufficient for the setup script; the application runs as Python 3.12 in Docker.
+Install Docker Engine with Compose, or Docker Desktop. Python 3.9+ is sufficient for the setup script; the application runs on Python 3.15.2 in Docker. Source installs continue to support Python 3.12 and later; uv uses the version in `.python-version` by default.
 
 ```sh
 git clone https://github.com/ShaunPrice/DistributedAI.git
@@ -67,6 +68,7 @@ The offline database operator provisions additional organisations; tenant admini
 | [Console tour](docs/CONSOLE.md) | Screenshots and workflows for workspace administrators |
 | [Help and support](docs/SUPPORT.md) | Contextual guidance, support routing, internal tickets and your own AI client |
 | [Architecture](docs/ARCHITECTURE.md) | Shared memory, coordination and security boundaries |
+| [Improvement memory](docs/IMPROVEMENT_MEMORY.md) | Recording problems, attempted changes, predictions and observed outcomes |
 | [Client setup](docs/CLIENTS.md) | MCP connection examples and compatibility limits |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, HTTPS and AWS installation |
 | [Serverless](docs/SERVERLESS.md) | AWS, Azure and GCP templates; cloud deployment unverified |

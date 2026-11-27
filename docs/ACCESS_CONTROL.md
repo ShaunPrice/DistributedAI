@@ -27,7 +27,7 @@ Export and delete are independent. Revoking delete leaves export available; revo
 
 In **People & access**, an organisation administrator can open **Personal memory policy** for a user. In a workspace's detail panel, **Export and delete permissions** manages policy for that workspace. Personal-owner approval is allowed for personal memories; shared projects retain independent review. Quarantined content cannot be approved in either case.
 
-Memory export includes canonical records, full stored versions and proposals for the selected workspace. It is an explicit content export and the downloaded JSON must be protected. The current synchronous export is bounded to 10,000 payload rows and 8 MiB; exceeding either limit fails explicitly without returning a partial archive. Larger exports need a controlled offline process; there is no pagination or background export service yet.
+Memory export includes canonical records, full stored versions, proposals and improvement-memory problems and attempts for the selected workspace. It is an explicit content export and the downloaded JSON must be protected. The current synchronous export is bounded to 10,000 payload rows and 8 MiB; exceeding either limit fails explicitly without returning a partial archive. Larger exports need a controlled offline process; there is no pagination or background export service yet.
 
 Encrypted organisation/project archives are distinct from readable memory export. They preserve encrypted payloads and exclude credentials and plaintext key material. They retain structural identifiers and require the original organisation's key recovery material. They are not standalone PostgreSQL dumps and cannot be passed to pg_restore. See [backup and recovery](BACKUP_RECOVERY.md).
 
