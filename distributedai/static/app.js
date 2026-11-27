@@ -77,7 +77,7 @@ async function refresh() {
     "scope_id",
     (s) => s.name + " · " + s.kind,
   );
-  ["scope-select", "review-scope", "audit-scope"].forEach((id) =>
+  ["scope-select", "review-scope", "audit-scope", "improvement-scope"].forEach((id) =>
     options(id, id === "scope-select" ? scopes.filter((s) => s.kind !== "personal") : scopes, "scope_id", (s) => s.name + " · " + s.kind),
   );
   $("show-create").hidden = !scopes.some((s) => s.kind !== "personal" && s.kind !== "project" && (s.can_manage || state.principal.is_org_admin));
@@ -324,6 +324,145 @@ async function renderReviews() {
     target.append(card);
   });
 }
+const VERDICTS = {
+  improved: "Improved",
+  no_change: "No change",
+  regressed: "Regressed",
+  inconclusive: "Inconclusive",
+};
+const DECISIONS = {
+  retain: "Retain",
+  revise: "Revise",
+  replace: "Replace",
+  remove: "Remove",
+};
+function choice(name, entries) {
+  const select = node("select");
+  select.name = name;
+  Object.entries(entries).forEach(([value, label]) => {
+    const option = node("option", label);
+    option.value = value;
+    select.append(option);
+  });
+  return select;
+}
+function labelled(text, control) {
+  const label = node("label", text);
+  label.append(control);
+  return label;
+}
+function attemptCard(attempt, canWrite) {
+  const block = node("div", undefined, "attempt");
+  const head = node("div", undefined, "attempt-head");
+  head.append(
+    node("strong", "Attempt " + attempt.number),
+    node(
+      "span",
+      attempt.verdict ? VERDICTS[attempt.verdict] : "Awaiting outcome",
+      "badge verdict-" + (attempt.verdict || "open"),
+    ),
+  );
+  if (attempt.decision)
+    head.append(node("span", "Decision: " + DECISIONS[attempt.decision], "badge"));
+  if (attempt.verdict)
+    head.append(
+      node(
+        "span",
+        attempt.independent_outcome
+          ? "Outcome by another identity"
+          : "Outcome self-reported",
+        "badge",
+      ),
+    );
+  block.append(head);
+  const facts = node("dl");
+  [
+    ["Change", attempt.change],
+    ["Why", attempt.rationale],
+    ["Expected", attempt.predicted],
+    ["Observed", attempt.observed],
+    ["Context", attempt.context],
+  ].forEach(([term, value]) => {
+    if (value) facts.append(node("dt", term), node("dd", value));
+  });
+  block.append(facts);
+  if (!attempt.verdict && canWrite) {
+    const form = node("form", undefined, "outcome-form");
+    const observed = node("textarea");
+    observed.name = "observed";
+    observed.required = true;
+    observed.maxLength = 4000;
+    observed.rows = 2;
+    form.append(
+      labelled("What was observed", observed),
+      labelled("Verdict", choice("verdict", VERDICTS)),
+      labelled("Decision", choice("decision", DECISIONS)),
+      node("button", "Record outcome"),
+    );
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      perform(async () => {
+        await action("improvement_outcome", {
+          attempt_id: attempt.attempt_id,
+          ...Object.fromEntries(new FormData(form)),
+        });
+        notice("Outcome recorded.");
+        await renderImprovements();
+      });
+    });
+    block.append(form);
+  }
+  return block;
+}
+let improvementRender = 0;
+async function renderImprovements() {
+  const target = $("improvement-list");
+  const scope = $("improvement-scope").value;
+  // A newer request (workspace or search changed meanwhile) supersedes this one.
+  const current = ++improvementRender;
+  if (!scope) return target.replaceChildren();
+  const role = state.scopes.find((s) => s.scope_id === scope)?.role;
+  const canWrite = ["writer", "reviewer", "admin"].includes(role);
+  $("improvement-record-panel").hidden = !canWrite;
+  const result = await action("improvement_list", {
+    scope_id: scope,
+    query: $("improvement-query").value,
+    limit: 50,
+  });
+  if (current !== improvementRender) return;
+  target.replaceChildren();
+  if (!result.problems.length)
+    target.append(
+      node("p", "No recorded problems match in this workspace.", "empty"),
+    );
+  result.problems.forEach((problem) => {
+    const card = node("article", undefined, "review-card");
+    const summary = problem.summary;
+    const counts = node("p", undefined, "attempt-head");
+    counts.append(
+      node("span", summary.attempts + (summary.attempts === 1 ? " attempt" : " attempts"), "badge"),
+    );
+    ["improved", "regressed", "no_change", "inconclusive"].forEach((name) => {
+      if (summary[name])
+        counts.append(
+          node("span", summary[name] + " " + VERDICTS[name].toLowerCase(), "badge verdict-" + name),
+        );
+    });
+    if (summary.awaiting_outcome)
+      counts.append(
+        node("span", summary.awaiting_outcome + " awaiting outcome", "badge verdict-open"),
+      );
+    if (problem.scope_id !== scope)
+      counts.append(node("span", "From a parent workspace", "badge"));
+    card.append(node("h2", problem.problem), counts);
+    problem.attempts.forEach((attempt) =>
+      card.append(attemptCard(attempt, canWrite && problem.scope_id === scope)),
+    );
+    target.append(card);
+  });
+  if (result.list_truncated)
+    target.append(node("p", "More problems exist than can be listed; narrow the search.", "hint"));
+}
 async function renderAudit() {
   const target = $("audit-list");
   target.replaceChildren();
@@ -360,6 +499,7 @@ async function switchView(name) {
     projects: "PROJECTS",
     people: "PEOPLE & ACCESS",
     reviews: "MEMORY REVIEWS",
+    improvements: "IMPROVEMENT MEMORY",
     audit: "AUDIT TRAIL",
     keys: "ENCRYPTION KEYS",
     billing: "CONNECTIONS & PLAN",
@@ -368,6 +508,7 @@ async function switchView(name) {
   $("page-help").dataset.helpPage = name;
   if (name === "support") await window.DistributedSupport.refresh();
   if (name === "reviews") await renderReviews();
+  if (name === "improvements") await renderImprovements();
   if (name === "audit") await renderAudit();
   if (name === "keys") await renderKeys();
   if (name === "billing") await renderBilling();
@@ -466,6 +607,23 @@ document
   );
 $("review-scope").addEventListener("change", () => perform(renderReviews));
 $("audit-scope").addEventListener("change", () => perform(renderAudit));
+$("improvement-scope").addEventListener("change", () => perform(renderImprovements));
+$("improvement-query").addEventListener("change", () => perform(renderImprovements));
+submit("improvement-form", async (form) => {
+  const values = Object.fromEntries(new FormData(form));
+  if (!values.context) delete values.context;
+  const result = await action("improvement_record", {
+    scope_id: $("improvement-scope").value,
+    ...values,
+  });
+  form.reset();
+  notice(
+    result.problem_created
+      ? "Attempt recorded under a new problem."
+      : "Attempt " + result.number + " recorded under the existing problem.",
+  );
+  await renderImprovements();
+});
 showLogin();
 refresh().catch(() => {});
 

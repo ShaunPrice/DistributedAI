@@ -188,3 +188,38 @@ def test_support_encryption_acl_and_concurrency_across_replicas(env, monkeypatch
         assert len(first_repo.list_metadata(org_id=owner.org_id)) == 2
     finally:
         other._engine.dispose()
+
+
+def test_concurrent_improvement_records_share_one_problem_and_outcome_has_one_winner(env):
+    store, owner, worker, root, url = env
+    replica = Store(url)
+    try:
+        arguments = {"scope_id": root, "problem": "Completion declared before tests run",
+                     "rationale": "No test command in the trace", "predicted": "Fixes task 3"}
+        results = race([
+            lambda: store.dispatch(owner, "improvement_record", {**arguments, "change": "Gate A"}),
+            lambda: replica.dispatch(worker, "improvement_record", {**arguments, "change": "Gate B"}),
+        ])
+        assert not [item for item in results if "error" in item], results
+        assert len({item["problem_id"] for item in results}) == 1
+        assert sorted(item["number"] for item in results) == [1, 2]
+        assert sorted(item["problem_created"] for item in results) == [False, True]
+
+        attempt = results[0]["attempt_id"]
+        verdicts = race([
+            lambda: store.dispatch(owner, "improvement_outcome", {
+                "attempt_id": attempt, "observed": "task 3 passes", "verdict": "improved",
+                "decision": "retain"}),
+            lambda: replica.dispatch(worker, "improvement_outcome", {
+                "attempt_id": attempt, "observed": "task 9 regressed", "verdict": "regressed",
+                "decision": "remove"}),
+        ])
+        assert sorted("error" in item for item in verdicts) == [False, True]
+        assert next(item for item in verdicts if "error" in item)["error"] == "invalid_state"
+        problems = replica.dispatch(worker, "improvement_list", {"scope_id": root})["problems"]
+        assert len(problems) == 1 and problems[0]["summary"]["attempts"] == 2
+        winner = next(item for item in verdicts if "error" not in item)
+        stored = next(a for a in problems[0]["attempts"] if a["attempt_id"] == attempt)
+        assert stored["verdict"] == winner["verdict"]
+    finally:
+        replica._engine.dispose()

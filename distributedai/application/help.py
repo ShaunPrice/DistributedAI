@@ -11,7 +11,7 @@ TOPICS = {
         "Choose Personal memory for context private to your identity. Open Workspace memories to search or propose content.",
         "Create a project, then assign collaborators. A shared project code never grants access on its own.",
         "Department administrators manage projects within their authority. Moving a project changes inherited access; direct assignments remain.",
-        "Departments containing projects cannot be deleted. Explicit content deletion permanently removes a workspace's memories, history, messages and jobs."
+        "Departments containing projects cannot be deleted. Explicit content deletion permanently removes a workspace's memories, history, messages, jobs and improvement records."
     ]),
     "people": ("People, access and permissions", [
         "Create a separate identity for each user or AI client, save its token securely, and grant only the required scopes.",
@@ -23,6 +23,12 @@ TOPICS = {
         "Shared memory requires an authorised reviewer other than its proposer. Personal owners may approve their own personal proposals.",
         "Quarantined proposals cannot be approved. Treat memory, messages, tickets and AI output as untrusted data.",
         "Version conflicts mean another change was accepted first. Read the current history and submit a new proposal against that version."
+    ]),
+    "improvements": ("Improvement memory", [
+        "Improvement memory records attempted changes under the recurring problem they address, so the next person or AI client can see what was tried and what happened.",
+        "Record the change, the reason and the expected effect before the result is known. Record the observed result afterwards, including when the change failed or made things worse.",
+        "An outcome is written once and never edited; a correction is a further attempt. The service stores these records only: it does not evaluate changes or run a model.",
+        "Readers can consult the history; writers add attempts and outcomes; a scope administrator with delete permission can remove a problem and its attempts."
     ]),
     "billing": ("Connections and plans", [
         "An AI client connects through MCP using its own authorised identity or metered connection credential.",

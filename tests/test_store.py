@@ -416,6 +416,17 @@ def test_search_like_wildcards_are_escaped(env):
     assert hits == []  # '%' matches literally, not as a wildcard
 
 
+def test_search_matches_the_memory_key_as_well_as_content(env):
+    accept_record(env, env.alice, env.dept, "Deployment-Runbook", "restart the worker pool")
+    accept_record(env, env.alice, env.dept, "glossary", "terms used by the team")
+    by_key = env.store.dispatch(env.alice, "memory_search",
+                                {"scope_id": env.dept, "query": "runbook"})["records"]
+    assert [r["key"] for r in by_key] == ["Deployment-Runbook"]
+    by_content = env.store.dispatch(env.alice, "memory_search",
+                                    {"scope_id": env.dept, "query": "TERMS"})["records"]
+    assert [r["key"] for r in by_content] == ["glossary"]
+
+
 # ---------------------------------------------------------------------------
 # messages
 # ---------------------------------------------------------------------------
@@ -833,7 +844,8 @@ def test_proposal_list_reviewer_only_shape_and_quarantine_visibility(env):
     assert set(by_key) == {"clean", "dirty"}
     for p in out["proposals"]:
         assert set(p) == {"proposal_id", "key", "content", "source", "status",
-                          "quarantined", "findings", "epistemic_kind", "proposer_id"}
+                          "quarantined", "findings", "epistemic_kind", "proposer_id",
+                          "expected_version", "created_at"}
         assert isinstance(p["findings"], list)
         assert p["proposer_id"] == env.alice.id and p["status"] == "pending"
     assert by_key["dirty"]["quarantined"] is True and by_key["dirty"]["findings"]

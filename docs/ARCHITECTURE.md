@@ -24,7 +24,13 @@ Project codes are random, non-secret references. `project_resolve` still require
 
 `memory_propose` records content, a key, source, epistemic label, expected version and scan findings. It does not change canonical state. A reviewer other than the proposer may accept a clean proposal. Review serialisation and version checks prevent silent overwrites. Conflicts remain explicit. History and audit are append-only through the application, not cryptographically tamper-proof against database operators.
 
-Search returns canonical records in the requested scope and ancestors the principal can read. It does not implicitly search sibling projects or descend through a broad organisation scope. Search uses bounded lexical matching; semantic vectors, temporal entity graphs, consolidation and the complete Cognitive-Memory tool set are future extensions.
+Search returns canonical records in the requested scope and ancestors the principal can read. It does not implicitly search sibling projects or descend through a broad organisation scope. Search uses bounded lexical matching over memory content and keys; semantic vectors, temporal entity graphs, consolidation and the complete Cognitive-Memory tool set are future extensions.
+
+## Improvement memory
+
+`improvement_record` stores an attempted change under the recurring problem it addresses, with its rationale, optional context and a prediction. `improvement_outcome` later stores what was observed, a verdict and a keep-or-change decision. An outcome is written once; earlier attempts are never edited, and failed or regressed attempts stay in the record. `improvement_list` returns problems with their attempt history for the requested scope and the ancestors the caller can read, as untrusted data.
+
+Problem statements are grouped by a Unicode-normalised, case-insensitive comparison inside one scope. Because the text is encrypted at rest, that comparison runs in memory over at most 500 problems per scope; no plaintext or hashed index is stored. Text that fails payload screening is refused and not stored. The service records and returns this history; it does not evaluate changes, select between candidates, call a model or act on a decision. See [improvement memory](IMPROVEMENT_MEMORY.md).
 
 ## Coordination
 

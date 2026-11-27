@@ -342,12 +342,16 @@ class BillingEngine:
 
     @staticmethod
     def _storage_size(sess: Session, org_id: str) -> int:
-        from .workspace import Job, MemoryProposal, MemoryVersion, Message
+        from .workspace import (ImprovementAttempt, ImprovementProblem, Job, MemoryProposal,
+                                MemoryVersion, Message)
         total = 0
         for table, fields in ((MemoryProposal, ("content", "source", "findings")),
                               (MemoryVersion, ("content", "source")),
                               (Message, ("body", "findings")),
-                              (Job, ("objective", "result", "findings"))):
+                              (Job, ("objective", "result", "findings")),
+                              (ImprovementProblem, ("problem",)),
+                              (ImprovementAttempt, ("change", "rationale", "predicted",
+                                                    "context", "observed"))):
             for row in sess.execute(select(table).where(table.org_id == org_id)).scalars():
                 total += sum(len((getattr(row, field) or "").encode("utf-8")) for field in fields)
         return total

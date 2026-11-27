@@ -42,6 +42,8 @@ async def test_help_is_public_but_ticket_and_configuration_are_protected(support
             assert help_result.status_code == 200
             assert "bootstrap_token" in help_result.text
             assert (await client.get(f"/{prefix}/assets/help.js")).status_code == 200
+            if prefix == "manage":
+                assert (await client.get("/manage/assets/icon-improvements.svg")).status_code == 200
         assert (await client.post("/manage/api/support_list", json={})).status_code == 401
         assert (await client.get("/platform/support-settings")).status_code == 401
         await client.post("/manage/login", json={"token": USER})

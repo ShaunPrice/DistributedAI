@@ -56,6 +56,14 @@
             alt=""
           />Memory reviews
         </button>
+        <button class="nav-item" data-view="improvements">
+          <img
+            src="/manage/assets/icon-improvements.svg"
+            width="18"
+            height="18"
+            alt=""
+          />Improvement memory
+        </button>
         <button class="nav-item" data-view="billing">
           <img
             src="/manage/assets/icon-billing.svg"
@@ -540,6 +548,62 @@
               <button>Save organisation support</button>
             </form>
           </section>
+        </section>
+        <section id="improvements-view" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">WHAT WAS TRIED AND WHAT HAPPENED</div>
+              <h1>Improvement memory</h1>
+              <p>
+                Attempted changes grouped by the recurring problem they address,
+                each with its prediction and observed outcome.
+              </p>
+            </div>
+          </div>
+          <div class="improvement-filter">
+            <label class="scope-filter"
+              >Workspace<select id="improvement-scope"></select
+            ></label>
+            <label class="scope-filter"
+              >Find a problem<input
+                id="improvement-query"
+                maxlength="500"
+                placeholder="Words from the problem statement"
+            /></label>
+          </div>
+          <section id="improvement-record-panel" class="form-panel" hidden>
+            <h2>Record an attempt</h2>
+            <form id="improvement-form" class="form-grid">
+              <label class="wide"
+                >Recurring problem<input
+                  name="problem"
+                  required
+                  maxlength="500"
+                  placeholder="An existing statement joins that problem's history"
+              /></label>
+              <label
+                >Change made<textarea name="change" required maxlength="4000" rows="3"></textarea
+              ></label>
+              <label
+                >Why this change<textarea name="rationale" required maxlength="4000" rows="3"></textarea
+              ></label>
+              <label
+                >Expected effect, before testing<textarea name="predicted" required maxlength="4000" rows="3"></textarea
+              ></label>
+              <label
+                >Context (optional)<input
+                  name="context"
+                  maxlength="500"
+                  placeholder="e.g. model, task set, round"
+              /></label>
+              <button>Record attempt</button>
+            </form>
+            <p class="hint">
+              Record the expected effect before you know the result. Outcomes
+              are written once and cannot be edited.
+            </p>
+          </section>
+          <div id="improvement-list"></div>
         </section>
         <section id="audit-view" class="view" hidden>
           <div class="page-heading">
